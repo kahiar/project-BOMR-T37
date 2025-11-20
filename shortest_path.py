@@ -69,52 +69,6 @@ def segments_intersect(p1, p2, q1, q2):
 
     return False
 
-def segment_intersects_any_obstacle(p1, p2, obstacles):
-    """
-    Returns True if segment p1-p2 intersects any obstacle edge.
-    """
-    for polygon in obstacles: #takes polygons 1 at a time 
-        for q1, q2 in polygon_edges(polygon): #q1 and q2 represent the endpoints of one obstacle edge
-            # Optional: skip if they share an endpoint (for visibility later)
-            if np.allclose(p1, q1) or np.allclose(p1, q2) \
-                or np.allclose(p2, q1) or np.allclose(p2, q2): #test to see if p1 or p2 is exactly on a vertex of the obstacle edge
-                continue
-
-            if segments_intersect(p1, p2, q1, q2):
-                return True
-    return False
-
-def find_accessible_neighbours(current_position, end, obstacles):
-    """
-    Returns a vector with the indices of all accessible neighbours.
-
-    The indices are with respect to the internal node list:
-    nodes = [end] + [all obstacle vertices in order]
-    """
-    nodes = []
-
-    # 1) Add goal point first
-    nodes.append(end)
-
-    # 2) Add all obstacle vertices
-    for poly in obstacles:
-        for v in poly:
-            nodes.append(v)
-
-    accessible_indices = []
-
-    # 3) Check visibility from current_position to each node
-    for idx, p in enumerate(nodes):
-
-        # Skip if it's (numerically) the same point
-        if np.allclose(p, current_position):
-            continue
-
-        # If the segment doesn't intersect any obstacle, it's a neighbour
-        if not segment_intersects_any_obstacle(current_position, p, obstacles):
-            accessible_indices.append(idx)
-
-    return accessible_indices
 
 def visible(i, j, nodes, obstacles):
     """
@@ -169,7 +123,7 @@ def visible(i, j, nodes, obstacles):
             if segments_intersect(p1, p2, q1, q2):
                 return False
 
-    return True
+    return True # The segment is obstacle-free
 
 def build_visibility_graph(nodes, obstacles):
     """
@@ -284,6 +238,7 @@ def a_star(nodes, obstacles, start_idx=0, goal_idx=1):
 def main():
 
     # 1) PARAMETERS
+    #=============================================================================
     GRID_SIZE = 800
     NB_OBSTACLES = 2
 
@@ -312,41 +267,30 @@ def main():
     np.array([250.0, 550.0]),
     ]
 
-
-    
-
     # Stack everything into a single tensor to simulate argument of the function
     obstacles = [quad1, quad2, quad3]
 
-    # Build nodes
+    #=============================================================================
+
+    # 2) Build appended vector with all nodes from the tensor
     nodes = [start, goal]
     for poly in obstacles:
         for v in poly:
             nodes.append(v)
-    
+
+    # 3) Build visibility graph
     graph = build_visibility_graph(nodes, obstacles)
     
-    # --- Run A* using visibility as neighbor criterion ---
+    # 4) Run A* using visibility as neighbor criterion
     path_indices, path_len = a_star(nodes, obstacles, start_idx=0, goal_idx=1)
     print("Path indices:", path_indices)
     print("Path length:", path_len)
 
     if path_indices is not None:
         path_coords = [nodes[i] for i in path_indices]
-        print("Path coordinates:", path_coords)
+        print("Path coordinates:", path_coords) 
 
-    # Test: is direct start->goal line blocked?
-    # blocked = segment_intersects_any_obstacle(start, goal, obstacles)
-    # print("Direct path blocked by an obstacle?", blocked)
-
-    # current_position = start for the first step
-    current_position = ([800,100])
-
-    neigh_indices = find_accessible_neighbours(current_position, goal, obstacles)
-    #print("Accessible neighbours indices:", neigh_indices)  
-
-    # Call the plotting function
-    # plot_environment(start, goal, obstacles, GRID_SIZE)
+    # 5) Visualise
     
     if path_indices is not None:
         path_coords = [nodes[i] for i in path_indices]
