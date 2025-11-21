@@ -1,5 +1,4 @@
 import asyncio
-import utils
 from tdmclient import ClientAsync
 from vision_system import VisionSystem
 from kalman_filter import KalmanFilter
