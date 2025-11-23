@@ -13,6 +13,7 @@ class VisionSystem:
         self.aruco_params = aruco.DetectorParameters()
 
         # Initialize variables
+        self.detected_markers = {}
         self.corners = None  # [(x1, y1), ...]
         self.transform_matrix = None
         self.mm2px = None
@@ -22,7 +23,7 @@ class VisionSystem:
         # This works as 'cache' to make sure every function gets same frame
         self._current_transform_frame = None
 
-    def calibrate(self, corner_ids={0,2,3,5}, robot_id=4, goal_id=1, map_width=800, map_height=600):
+    def calibrate(self, corner_ids={0,2,3,5}, goal_id=1, robot_id=4, map_width=800, map_height=600):
         """
         Detect map corners and goal using aruco markers.
         Computes perspective transform and scale.
@@ -36,8 +37,12 @@ class VisionSystem:
         if frame is None:
             raise Exception("Failed to capture frame")
 
-        # Extract centers of detected markers
+        # Put all ids together
+        all_ids = corner_ids.union({goal_id, robot_id})
+
+        # Extract centers of detected markers, after this the detected_markers dict has everything inside it!
         marker_centers = self._detect_marker_centers(frame, target_ids=corner_ids)
+
 
         # Detect corners, put dictionary with id as key and position as value
         corner_markers = {id: pos for id, pos in marker_centers.items() if id in corner_ids}
@@ -61,10 +66,11 @@ class VisionSystem:
         )
 
         # Detect goal marker
-        if goal_id in marker_centers:
-            goal_raw =np.array([[marker_centers[goal_id]]], dtype=np.float32)
+        if goal_id in self.detected_markers:
+            goal_raw =np.array([[self.detected_markers[goal_id]]], dtype=np.float32)
             goal_transf = cv2.perspectiveTransform(goal_raw, self.transform_matrix)
             self.goal_position = tuple(goal_transf[0][0])
+            print(f"Goal position: {self.goal_position}")
         else:
             raise Exception("Failed to detect goal marker")
 
@@ -92,12 +98,18 @@ class VisionSystem:
             return {}
 
         marker_centers = {}
-        for corners, marker_id in zip(markers_detected, ids.flatten()):
+        for marker, marker_id in zip(markers_detected, ids.flatten()):
             if target_ids is None or marker_id in target_ids:
-                pts = corners.reshape((4, 2))
+                pts = marker.reshape((4, 2))
                 cx = np.mean(pts[:, 0])
                 cy = np.mean(pts[:, 1])
                 marker_centers[marker_id] = (cx, cy)
+
+                # put corner coordinate for orientation
+                self.detected_markers[marker_id] = {
+                    'center': (cx, cy),
+                    'corners': pts  # [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+                }
 
         return marker_centers
 
@@ -134,19 +146,41 @@ class VisionSystem:
         Returns:
             np.array: [x, y, theta] in map coordinates, or None if not detected
         """
-        frame = self.get_frame()
-        if frame is None:
+
+        if 4 not in self.detected_markers:
+            print("Robot marker not detected!")
             return None
 
-        # TODO: Apply perspective transform
-        # TODO: Detect arrow marker (color-based or aruco)
-        # TODO: Extract position (x, y)
-        # TODO: Extract orientation angle (theta)
+        if self.transform_matrix is None:
+            return None
+
+        robot_data = self.detected_markers[4]
+
+        center_raw = np.array([[robot_data['center']]], dtype=np.float32)
+        center_transf = cv2.perspectiveTransform(center_raw, self.transform_matrix)
+        x, y = center_transf[0][0]
+
+        # Orientation, corners are: TL, TR, BR, BL
+        corners = robot_data['corners']
+
+        tl = corners[0]
+        tr = corners[1]
+
+        top_center = (tl + tr) / 2
+        center = robot_data['center']
+
+        dx = top_center[0] - center[0]
+        dy = top_center[1] - center[1]
+
+        # Compute angle in radians
+        theta = np.arctan2(dy, dx)
+
+        return np.array([x, y, theta])
 
         return np.array([x, y, theta])
     
     # 1. Filtrer la couleur (bleu)
-    def filter_color(image):
+    def filter_color(self, image):
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
         LOWER_BLUE = np.array([90, 50, 50])
@@ -160,14 +194,14 @@ class VisionSystem:
 
         return mask
     
-    def process_image(mask):
+    def process_image(self, mask):
         # Applique un flou et une détection de contours
         blurred = cv2.GaussianBlur(mask, (3, 3), 0)
         edges = cv2.Canny(blurred, 50, 150, 7, L2gradient=True)
         dilated_edges = cv2.dilate(edges, kernel=np.ones((5, 5), np.uint8), iterations=1)
         return dilated_edges
     
-    def scale_contour(contour, scale):
+    def scale_contour(self, contour, scale):
         M = cv2.moments(contour)
         if M['m00'] == 0:
             return contour
@@ -195,16 +229,16 @@ class VisionSystem:
 
         return scaled_contours, all_vertices
     
-    def draw_contours(image, scaled_contours, all_vertices):
+    def draw_contours(self, image, scaled_contours, all_vertices):
         output = image.copy()
 
         # Dessiner les vertices (points)
         for vertices in all_vertices:
             for (x, y) in vertices:
-                cv2.circle(output, (x, y), 13, (0, 0, 255), -1)
+                cv2.circle(output, (x, y), 5, (0, 0, 255), -1)
 
         # Dessiner contours scalés
-        cv2.drawContours(output, scaled_contours, -1, (0, 0, 255), 2)
+        cv2.drawContours(output, scaled_contours, -1, (0, 0, 255), 1)
 
         return output
 
@@ -256,7 +290,7 @@ if __name__ == "__main__":
 
     calibrated = False
 
-    # Remplacer la boucle while (à partir de la ligne 151)
+    # Remplacer la boucle while (à partir de la ligne 249)
     while True:
         frame = vision.get_frame()
         if frame is None:
@@ -288,9 +322,66 @@ if __name__ == "__main__":
             # Appliquer la transformation perspective pour recadrer
             warped = cv2.warpPerspective(frame, vision.transform_matrix, (800, 600))
 
+            # Détecter le goal marker (ID 1)
+            marker_centers = vision._detect_marker_centers(frame, target_ids={1})
+            if 1 in marker_centers:
+                goal_raw = np.array([[marker_centers[1]]], dtype=np.float32)
+                goal_transf = cv2.perspectiveTransform(goal_raw, vision.transform_matrix)
+                vision.goal_position = tuple(goal_transf[0][0])
+
+            # Détecter les obstacles sur l'image transformée
+            mask = vision.filter_color(warped)
+            edges = vision.process_image(mask)
+            scaled_contours, all_vertices = vision.detect_contours(edges)
+
+            # Dessiner les contours sur l'image transformée
+            display = vision.draw_contours(warped, scaled_contours, all_vertices)
+
+            # Dessiner le goal si détecté
+            if vision.goal_position is not None:
+                gx, gy = int(vision.goal_position[0]), int(vision.goal_position[1])
+                cv2.circle(display, (gx, gy), 5, (0, 255, 0), -1)
+                cv2.circle(display, (gx, gy), 10, (0, 255, 0), 2)
+                cv2.putText(
+                    display,
+                    "GOAL",
+                    (gx - 30, gy - 25),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
+                    1
+                )
+
+                # Détecter et afficher le robot
+                robot_pose = vision.detect_robot_raw_pose()
+                if robot_pose is not None:
+                    x, y, theta = robot_pose
+                    rx, ry = int(x), int(y)
+
+                    # Cercle bleu pour la position
+                    cv2.circle(display, (rx, ry), 8, (255, 0, 0), -1)
+                    cv2.circle(display, (rx, ry), 12, (255, 0, 0), 2)
+
+                    # Flèche pour l'orientation
+                    arrow_length = 30
+                    end_x = int(rx + arrow_length * np.cos(theta))
+                    end_y = int(ry + arrow_length * np.sin(theta))
+                    cv2.arrowedLine(display, (rx, ry), (end_x, end_y), (255, 0, 0), 3, tipLength=0.3)
+
+                    # Afficher les coordonnées
+                    cv2.putText(
+                        display,
+                        f"Robot: ({rx}, {ry}, {np.degrees(theta):.1f}deg)",
+                        (10, 60),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (255, 0, 0),
+                        2
+                    )
+
             cv2.putText(
-                warped,
-                "CALIBRATED (Live)",
+                display,
+                f"CALIBRATED - Obstacles: {len(all_vertices)}",
                 (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1,
@@ -298,7 +389,7 @@ if __name__ == "__main__":
                 2
             )
 
-            cv2.imshow("Vision System - Calibrated View (Press 'q' to quit)", warped)
+            cv2.imshow("Vision System - Calibrated View (Press 'q' to quit)", display)
         else:
             # Afficher la vue brute avec les coins détectés
             display_frame = frame.copy()
@@ -316,4 +407,6 @@ if __name__ == "__main__":
         if key == ord('q'):
             break
 
+    vision.release()
+    cv2.destroyAllWindows()
 
