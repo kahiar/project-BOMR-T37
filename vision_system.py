@@ -16,7 +16,11 @@ class VisionSystem:
         self.corners = None  # [(x1, y1), ...]
         self.transform_matrix = None
         self.mm2px = None
+        self.map_size = (800, 600)
         self.goal_position = None  # (x, y)
+
+        # This works as 'cache' to make sure every function gets same frame
+        self._current_transform_frame = None
 
     def calibrate(self, corner_ids={0,2,3,5}, robot_id=4, goal_id=1, map_width=800, map_height=600):
         """
@@ -26,6 +30,7 @@ class VisionSystem:
         Sets:
             self.corners, self.transform_matrix, self.mm2px, self.goal_position
         """
+        self.map_size = (map_width, map_height)
 
         frame = self.get_frame()
         if frame is None:
@@ -99,10 +104,28 @@ class VisionSystem:
     def get_frame(self):
         """
         Returns:
-            np.array: BGR image or None if capture fails
+            np.array: BGR image or None if fail
         """
         ret, frame = self.cap.read()
         return frame if ret else None
+
+    def get_transform_frame(self):
+        """
+        Transformed camera frame for detection functions
+
+        Returns:
+            np.array: BGR image or None if fail
+        """
+        frame = self.get_frame()
+        if frame is None or self.transform_matrix is None:
+            return None
+
+        transformed = cv2.warpPerspective(frame, self.transform_matrix, self.map_size)
+
+        self._current_transformed_frame = transformed
+
+        return transformed
+
 
     def detect_robot_raw_pose(self):
         """
