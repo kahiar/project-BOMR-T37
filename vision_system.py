@@ -146,7 +146,7 @@ class VisionSystem:
         return np.array([x, y, theta])
     
     # 1. Filtrer la couleur (bleu)
-    def filter_color(image):
+    def filter_color(self, image):
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
         LOWER_BLUE = np.array([90, 50, 50])
@@ -160,14 +160,14 @@ class VisionSystem:
 
         return mask
     
-    def process_image(mask):
+    def process_image(self, mask):
         # Applique un flou et une détection de contours
         blurred = cv2.GaussianBlur(mask, (3, 3), 0)
         edges = cv2.Canny(blurred, 50, 150, 7, L2gradient=True)
         dilated_edges = cv2.dilate(edges, kernel=np.ones((5, 5), np.uint8), iterations=1)
         return dilated_edges
     
-    def scale_contour(contour, scale):
+    def scale_contour(self, contour, scale):
         M = cv2.moments(contour)
         if M['m00'] == 0:
             return contour
@@ -195,16 +195,16 @@ class VisionSystem:
 
         return scaled_contours, all_vertices
     
-    def draw_contours(image, scaled_contours, all_vertices):
+    def draw_contours(self, image, scaled_contours, all_vertices):
         output = image.copy()
 
         # Dessiner les vertices (points)
         for vertices in all_vertices:
             for (x, y) in vertices:
-                cv2.circle(output, (x, y), 13, (0, 0, 255), -1)
+                cv2.circle(output, (x, y), 5, (0, 0, 255), -1)
 
         # Dessiner contours scalés
-        cv2.drawContours(output, scaled_contours, -1, (0, 0, 255), 2)
+        cv2.drawContours(output, scaled_contours, -1, (0, 0, 255), 1)
 
         return output
 
@@ -256,7 +256,7 @@ if __name__ == "__main__":
 
     calibrated = False
 
-    # Remplacer la boucle while (à partir de la ligne 151)
+    # Remplacer la boucle while (à partir de la ligne 249)
     while True:
         frame = vision.get_frame()
         if frame is None:
@@ -288,9 +288,17 @@ if __name__ == "__main__":
             # Appliquer la transformation perspective pour recadrer
             warped = cv2.warpPerspective(frame, vision.transform_matrix, (800, 600))
 
+            # Détecter les obstacles sur l'image transformée
+            mask = vision.filter_color(warped)
+            edges = vision.process_image(mask)
+            scaled_contours, all_vertices = vision.detect_contours(edges)
+
+            # Dessiner les contours sur l'image transformée
+            display = vision.draw_contours(warped, scaled_contours, all_vertices)
+
             cv2.putText(
-                warped,
-                "CALIBRATED (Live)",
+                display,
+                f"CALIBRATED - Obstacles: {len(all_vertices)}",
                 (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1,
@@ -298,7 +306,7 @@ if __name__ == "__main__":
                 2
             )
 
-            cv2.imshow("Vision System - Calibrated View (Press 'q' to quit)", warped)
+            cv2.imshow("Vision System - Calibrated View (Press 'q' to quit)", display)
         else:
             # Afficher la vue brute avec les coins détectés
             display_frame = frame.copy()
@@ -316,4 +324,6 @@ if __name__ == "__main__":
         if key == ord('q'):
             break
 
+    vision.release()
+    cv2.destroyAllWindows()
 
