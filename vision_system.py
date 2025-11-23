@@ -214,7 +214,7 @@ class VisionSystem:
         Returns:
             list: List of obstacle polygons, each as np.array([[x1,y1], [x2,y2], ...])
         """
-        frame = self.get_frame()
+        frame = self.get_transform_frame()
         if frame is None:
             return []
 
