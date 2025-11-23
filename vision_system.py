@@ -197,10 +197,12 @@ class VisionSystem:
 
         # TODO: Apply perspective transform
         # TODO: Detect shapes using contour detection
-
         # TODO: Filter for squares/rectangles
         # TODO: Return obstacle corner points
-
+        mask = self.filter_color(frame)
+        edges = self.process_image(mask)
+        scaled_contours, all_vertices = self.detect_contours(edges)
+        obstacles = all_vertices
         return obstacles
 
     def get_goal_position(self):
