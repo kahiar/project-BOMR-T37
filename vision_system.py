@@ -21,58 +21,116 @@ class VisionSystem:
         self.goal_position = None  # (x, y)
 
         # This works as 'cache' to make sure every function gets same frame
-        self._current_transform_frame = None
+        # self._current_transform_frame = None
 
-    def calibrate(self, corner_ids={0,2,3,5}, goal_id=1, robot_id=4, map_width=800, map_height=600):
+    def calibrate(self, corner_ids={0, 2, 3, 4}, goal_id=1, map_width=800, map_height=600):
         """
         Detect map corners and goal using aruco markers.
-        Computes perspective transform and scale.
 
         Sets:
             self.corners, self.transform_matrix, self.mm2px, self.goal_position
         """
         self.map_size = (map_width, map_height)
 
-        frame = self.get_frame()
-        if frame is None:
-            raise Exception("Failed to capture frame")
+        calibrated = False
 
-        # Put all ids together
-        all_ids = corner_ids.union({goal_id, robot_id})
+        while not calibrated:
+            frame = self.get_frame()
+            if frame is None:
+                print("Failed to capture frame")
+                continue
 
-        # Extract centers of detected markers, after this the detected_markers dict has everything inside it!
-        marker_centers = self._detect_marker_centers(frame, target_ids=corner_ids)
+            display_frame = frame.copy()
 
+            # Detect all markers
+            marker_centers = self._detect_marker_centers(
+                frame,
+                target_ids=corner_ids.union({goal_id})
+            )
 
-        # Detect corners, put dictionary with id as key and position as value
-        corner_markers = {id: pos for id, pos in marker_centers.items() if id in corner_ids}
-        if len(corner_markers) != 4:
-            raise Exception(f"Detected {len(corner_markers)} instead of 4.")
+            # Check corner markers
+            corner_markers = {id: pos for id, pos in marker_centers.items()
+                              if id in corner_ids}
 
-        corner_pts = [marker_centers[i] for i in sorted(corner_markers.keys())]
-        self.corners = self._order_points(corner_pts)
+            # Display status
+            status_text = f"Corners: {len(corner_markers)}/4"
+            status_color = (0, 255, 0) if len(corner_markers) == 4 else (0, 0, 255)
+            cv2.putText(display_frame, status_text, (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, status_color, 2)
 
-        # Perspective transform
-        dst_pts = np.array([
-            [0, 0],
-            [map_width - 1, 0],
-            [map_width - 1, map_height - 1],
-            [0, map_height - 1]
-        ], dtype=np.float32)
+            goal_detected = goal_id in marker_centers
+            goal_text = f"Goal: {'DETECTED' if goal_detected else 'NOT FOUND'}"
+            goal_color = (0, 255, 0) if goal_detected else (0, 0, 255)
+            cv2.putText(display_frame, goal_text, (10, 70),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, goal_color, 2)
 
-        self.transform_matrix = cv2.getPerspectiveTransform(
-            self.corners.astype(np.float32),
-            dst_pts
-        )
+            # Draw detected markers
+            for marker_id, (x, y) in marker_centers.items():
+                x, y = int(x), int(y)
+                color = (0, 255, 0) if marker_id in corner_ids else (255, 0, 255)
+                cv2.circle(display_frame, (x, y), 10, color, -1)
+                cv2.putText(display_frame, f"ID:{marker_id}", (x + 15, y),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-        # Detect goal marker
-        if goal_id in self.detected_markers:
-            goal_raw =np.array([[self.detected_markers[goal_id]]], dtype=np.float32)
-            goal_transf = cv2.perspectiveTransform(goal_raw, self.transform_matrix)
-            self.goal_position = tuple(goal_transf[0][0])
-            print(f"Goal position: {self.goal_position}")
-        else:
-            raise Exception("Failed to detect goal marker")
+            # Draw corners polygon if all 4 detected
+            if len(corner_markers) == 4:
+                corner_pts = [marker_centers[i] for i in sorted(corner_ids)]
+                ordered_corners = self._order_points(corner_pts)
+                pts = ordered_corners.astype(np.int32).reshape((-1, 1, 2))
+                cv2.polylines(display_frame, [pts], True, (0, 255, 0), 3)
+
+                # Show completion hint
+                cv2.putText(display_frame, "Press 'c' to complete calibration",
+                            (10, map_height - 20 if map_height < 500 else 110),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+
+            cv2.imshow("Calibration - Position Markers", display_frame)
+
+            key = cv2.waitKey(1) & 0xFF
+
+            # Complete calibration
+            if key == ord('c'):
+                if len(corner_markers) == 4 and goal_detected:
+                    # Process corners
+                    corner_pts = [marker_centers[i] for i in sorted(corner_ids)]
+                    self.corners = self._order_points(corner_pts)
+
+                    # Compute perspective transform
+                    dst_pts = np.array([
+                        [0, 0],
+                        [map_width - 1, 0],
+                        [map_width - 1, map_height - 1],
+                        [0, map_height - 1]
+                    ], dtype=np.float32)
+
+                    self.transform_matrix = cv2.getPerspectiveTransform(
+                        self.corners.astype(np.float32),
+                        dst_pts
+                    )
+
+                    # Transform goal position
+                    goal_raw = np.array([[marker_centers[goal_id]]], dtype=np.float32)
+                    goal_transf = cv2.perspectiveTransform(goal_raw, self.transform_matrix)
+                    self.goal_position = tuple(goal_transf[0][0])
+
+                    print("✓ Calibration complete!")
+                    print(f"  Corners: {self.corners}")
+                    print(f"  Goal: {self.goal_position}")
+
+                    calibrated = True
+                    cv2.destroyWindow("Calibration - Position Markers")
+                else:
+                    print("Missing markers!")
+                    if len(corner_markers) != 4:
+                        print(f"  Need 4 corners, found {len(corner_markers)}")
+                    if not goal_detected:
+                        print(f"  Goal marker {goal_id} not detected")
+
+            # Quit
+            elif key == ord('q'):
+                print("Calibration cancelled")
+                cv2.destroyWindow("Calibration - Position Markers")
+                raise Exception("Calibration cancelled by user")
 
     def _order_points(self, pts):
         """Order points as [TL, TR, BR, BL]"""
@@ -134,7 +192,7 @@ class VisionSystem:
 
         transformed = cv2.warpPerspective(frame, self.transform_matrix, self.map_size)
 
-        self._current_transformed_frame = transformed
+        # self._current_transformed_frame = transformed
 
         return transformed
 
@@ -146,6 +204,7 @@ class VisionSystem:
         Returns:
             np.array: [x, y, theta] in map coordinates, or None if not detected
         """
+        frame = self.get_transform_frame()
 
         if 4 not in self.detected_markers:
             print("Robot marker not detected!")
@@ -154,7 +213,9 @@ class VisionSystem:
         if self.transform_matrix is None:
             return None
 
-        robot_data = self.detected_markers[4]
+        marker_centers = self._detect_marker_centers(frame, target_ids={5})
+
+        robot_data = self.detected_markers[5]
 
         center_raw = np.array([[robot_data['center']]], dtype=np.float32)
         center_transf = cv2.perspectiveTransform(center_raw, self.transform_matrix)
@@ -177,8 +238,7 @@ class VisionSystem:
 
         return np.array([x, y, theta])
 
-        return np.array([x, y, theta])
-    
+
     # 1. Filtrer la couleur (bleu)
     def filter_color(self, image):
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
