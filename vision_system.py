@@ -6,7 +6,7 @@ from cv2 import aruco
 class VisionSystem:
     """Camera detection of robot, obstacles, and goal"""
 
-    def __init__(self, camera_id=0, aruco_dict_type=aruco.DICT_4X4_50):
+    def __init__(self, camera_id=1, aruco_dict_type=aruco.DICT_4X4_50):
         self.cap = cv2.VideoCapture(camera_id)
         self.aruco_dict = aruco.getPredefinedDictionary(aruco_dict_type)
         self.aruco_params = aruco.DetectorParameters()
@@ -87,7 +87,7 @@ class VisionSystem:
 
 
 #Test
-'''
+
 if __name__ == "__main__":
     vision = VisionSystem()
     print("VisionSystem initialized successfully")
@@ -115,4 +115,4 @@ if __name__ == "__main__":
     cv2.destroyAllWindows()
     vision.release()
     print("Camera released")
-'''
+
