@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from cv2 import aruco
 import matplotlib.pyplot as plt
+from visualizer import Visualizer
 
 
 class VisionSystem:
@@ -23,7 +24,7 @@ class VisionSystem:
         # This works as 'cache' to make sure every function gets same frame
         # self._current_transform_frame = None
 
-    def calibrate(self, corner_ids={0, 2, 3, 4}, goal_id=1, map_width=800, map_height=600):
+    def calibrate(self, corner_ids={0, 2, 3, 5}, goal_id=1, map_width=800, map_height=600):
         """
         Detect map corners and goal using aruco markers.
 
@@ -32,6 +33,10 @@ class VisionSystem:
         """
         self.map_size = (map_width, map_height)
 
+        print("=== Calibration Mode ===")
+        print(f"Looking for corner markers: {sorted(corner_ids)}")
+        print(f"Looking for goal marker: {goal_id}")
+
         calibrated = False
 
         while not calibrated:
@@ -39,8 +44,6 @@ class VisionSystem:
             if frame is None:
                 print("Failed to capture frame")
                 continue
-
-            display_frame = frame.copy()
 
             # Detect all markers
             marker_centers = self._detect_marker_centers(
@@ -51,20 +54,19 @@ class VisionSystem:
             # Check corner markers
             corner_markers = {id: pos for id, pos in marker_centers.items()
                               if id in corner_ids}
+            goal_marker = marker_centers.get(goal_id)
 
-            # Display status
-            status_text = f"Corners: {len(corner_markers)}/4"
-            status_color = (0, 255, 0) if len(corner_markers) == 4 else (0, 0, 255)
-            cv2.putText(display_frame, status_text, (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, status_color, 2)
+            # Order corners if all detected
+            corners_ordered = None
+            if len(corner_markers) == 4:
+                corner_pts = [marker_centers[i] for i in sorted(corner_ids)]
+                corners_ordered = self._order_points(corner_pts)
 
-            goal_detected = goal_id in marker_centers
-            goal_text = f"Goal: {'DETECTED' if goal_detected else 'NOT FOUND'}"
-            goal_color = (0, 255, 0) if goal_detected else (0, 0, 255)
-            cv2.putText(display_frame, goal_text, (10, 70),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, goal_color, 2)
 
-            # Draw detected markers
+            # Display everything during calibration
+            display_frame = frame.copy()
+
+            # Draw markers
             for marker_id, (x, y) in marker_centers.items():
                 x, y = int(x), int(y)
                 color = (0, 255, 0) if marker_id in corner_ids else (255, 0, 255)
@@ -72,28 +74,24 @@ class VisionSystem:
                 cv2.putText(display_frame, f"ID:{marker_id}", (x + 15, y),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-            # Draw corners polygon if all 4 detected
-            if len(corner_markers) == 4:
-                corner_pts = [marker_centers[i] for i in sorted(corner_ids)]
-                ordered_corners = self._order_points(corner_pts)
-                pts = ordered_corners.astype(np.int32).reshape((-1, 1, 2))
+            # Draw corners
+            if corners_ordered is not None:
+                pts = corners_ordered.astype(np.int32).reshape((-1, 1, 2))
                 cv2.polylines(display_frame, [pts], True, (0, 255, 0), 3)
 
-                # Show completion hint
-                cv2.putText(display_frame, "Press 'c' to complete calibration",
-                            (10, map_height - 20 if map_height < 500 else 110),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+            # Status
+            status_text = f"Corners: {len(corner_markers)}/4"
+            cv2.putText(display_frame, status_text, (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-            cv2.imshow("Calibration - Position Markers", display_frame)
-
+            cv2.imshow("Calibration", display_frame)
             key = cv2.waitKey(1) & 0xFF
 
             # Complete calibration
             if key == ord('c'):
-                if len(corner_markers) == 4 and goal_detected:
+                if len(corner_markers) == 4 and goal_marker:
                     # Process corners
-                    corner_pts = [marker_centers[i] for i in sorted(corner_ids)]
-                    self.corners = self._order_points(corner_pts)
+                    self.corners = corners_ordered
 
                     # Compute perspective transform
                     dst_pts = np.array([
@@ -109,7 +107,7 @@ class VisionSystem:
                     )
 
                     # Transform goal position
-                    goal_raw = np.array([[marker_centers[goal_id]]], dtype=np.float32)
+                    goal_raw = np.array([[goal_marker]], dtype=np.float32)
                     goal_transf = cv2.perspectiveTransform(goal_raw, self.transform_matrix)
                     self.goal_position = tuple(goal_transf[0][0])
 
@@ -118,18 +116,18 @@ class VisionSystem:
                     print(f"  Goal: {self.goal_position}")
 
                     calibrated = True
-                    cv2.destroyWindow("Calibration - Position Markers")
                 else:
-                    print("Missing markers!")
+                    print("⚠ Cannot complete: Missing markers!")
                     if len(corner_markers) != 4:
                         print(f"  Need 4 corners, found {len(corner_markers)}")
-                    if not goal_detected:
+                    if not goal_marker:
                         print(f"  Goal marker {goal_id} not detected")
 
             # Quit
             elif key == ord('q'):
                 print("Calibration cancelled")
-                cv2.destroyWindow("Calibration - Position Markers")
+                if not visualizer:
+                    cv2.destroyWindow("Calibration")
                 raise Exception("Calibration cancelled by user")
 
     def _order_points(self, pts):
@@ -197,29 +195,22 @@ class VisionSystem:
         return transformed
 
 
-    def detect_robot_raw_pose(self):
+    def detect_robot_raw_pose(self, frame):
         """
         This is RAW data - needs filtering.
 
         Returns:
             np.array: [x, y, theta] in map coordinates, or None if not detected
         """
-        frame = self.get_transform_frame()
+
+        marker_centers = self._detect_marker_centers(frame, target_ids={4})
+
 
         if 4 not in self.detected_markers:
             print("Robot marker not detected!")
             return None
 
-        if self.transform_matrix is None:
-            return None
-
-        marker_centers = self._detect_marker_centers(frame, target_ids={5})
-
-        robot_data = self.detected_markers[5]
-
-        center_raw = np.array([[robot_data['center']]], dtype=np.float32)
-        center_transf = cv2.perspectiveTransform(center_raw, self.transform_matrix)
-        x, y = center_transf[0][0]
+        robot_data = self.detected_markers[4]
 
         # Orientation, corners are: TL, TR, BR, BL
         corners = robot_data['corners']
@@ -229,12 +220,14 @@ class VisionSystem:
 
         top_center = (tl + tr) / 2
         center = robot_data['center']
+        x, y = center
 
         dx = top_center[0] - center[0]
         dy = top_center[1] - center[1]
 
         # Compute angle in radians
         theta = np.arctan2(dy, dx)
+
 
         return np.array([x, y, theta])
 
@@ -303,12 +296,11 @@ class VisionSystem:
         return output
 
 
-    def detect_obstacles(self):
+    def detect_obstacles(self, frame):
         """
         Returns:
             list: List of obstacle polygons, each as np.array([[x1,y1], [x2,y2], ...])
         """
-        frame = self.get_transform_frame()
         if frame is None:
             return []
 
@@ -336,137 +328,72 @@ class VisionSystem:
 
 #Test
 
-if __name__ == "__main__":
-    vision = VisionSystem()
-    print("VisionSystem initialized successfully")
+vision = VisionSystem()
+visualizer = Visualizer(window_name="Robot Debug View")
 
-    if not vision.cap.isOpened():
-        print("Camera failed to open")
-        exit(1)
+try:
+    # === PHASE 1: CALIBRATION (using the calibrate method!) ===
+    vision.calibrate(
+        corner_ids={0, 2, 3, 5},
+        goal_id=1,
+        map_width=800,
+        map_height=600,
+    )
 
-    print("Camera is active")
-    print("Press 'c' to calibrate")
-    print("Press 'q' to quit...")
+    # === PHASE 2: NAVIGATION/DEBUG VIEW ===
+    print("\n=== NAVIGATION DEBUG VIEW ===")
+    print("Showing: obstacles, robot, goal, sensors")
+    print("Press 'q' to quit\n")
 
-    calibrated = False
+    frame_count = 0
 
-    # Remplacer la boucle while (à partir de la ligne 249)
     while True:
-        frame = vision.get_frame()
+        # Get transformed frame
+        frame = vision.get_transform_frame()
         if frame is None:
-            print("Failed to capture frame")
+            continue
+
+        # Detect obstacles
+        obstacles = vision.detect_obstacles(frame)
+
+        # Detect robot
+        robot_pose = vision.detect_robot_raw_pose(frame)
+        print(f'Robot: {robot_pose}')
+
+        # Create dummy sensor data for testing
+        # TODO: Replace with real sensor data from Thymio
+        sensor_data = np.array([1000, 500, 200, 300, 800])
+
+        # Info panel
+        info = {
+            "Frame": frame_count,
+            "Obstacles": len(obstacles),
+            "Robot": "DETECTED" if robot_pose is not None else "NOT FOUND"
+        }
+
+        if robot_pose is not None:
+            info["X"] = f"{int(robot_pose[0])}"
+            info["Y"] = f"{int(robot_pose[1])}"
+            info["Theta"] = f"{np.degrees(robot_pose[2]):.1f}°"
+
+        # Update visualization with everything
+        visualizer.update(
+            frame=frame,
+            obstacles=obstacles,
+            robot_pos=robot_pose,
+            path=None,  # Will add when path planner is ready
+            current_waypoint_idx=0,
+            sensor_data=sensor_data,
+            goal_pos=vision.goal_position,
+            info_dict=info
+        )
+
+        frame_count += 1
+
+        if cv2.waitKey(30) & 0xFF == ord('q'):
             break
 
-        # Recalibration continue
-        marker_centers = vision._detect_marker_centers(frame, target_ids={0, 2, 3, 5})
-        if len(marker_centers) == 4:
-            corner_pts = [marker_centers[i] for i in sorted(marker_centers.keys())]
-            vision.corners = vision._order_points(corner_pts)
-
-            # Mettre à jour la matrice de transformation
-            dst_pts = np.array([
-                [0, 0],
-                [800 - 1, 0],
-                [800 - 1, 600 - 1],
-                [0, 600 - 1]
-            ], dtype=np.float32)
-
-            vision.transform_matrix = cv2.getPerspectiveTransform(
-                vision.corners.astype(np.float32),
-                dst_pts
-            )
-            calibrated = True
-
-        # Afficher la vue transformée si calibré
-        if calibrated and vision.transform_matrix is not None:
-            # Appliquer la transformation perspective pour recadrer
-            warped = cv2.warpPerspective(frame, vision.transform_matrix, (800, 600))
-
-            # Détecter le goal marker (ID 1)
-            marker_centers = vision._detect_marker_centers(frame, target_ids={1})
-            if 1 in marker_centers:
-                goal_raw = np.array([[marker_centers[1]]], dtype=np.float32)
-                goal_transf = cv2.perspectiveTransform(goal_raw, vision.transform_matrix)
-                vision.goal_position = tuple(goal_transf[0][0])
-
-            # Détecter les obstacles sur l'image transformée
-            mask = vision.filter_color(warped)
-            edges = vision.process_image(mask)
-            scaled_contours, all_vertices = vision.detect_contours(edges)
-
-            # Dessiner les contours sur l'image transformée
-            display = vision.draw_contours(warped, scaled_contours, all_vertices)
-
-            # Dessiner le goal si détecté
-            if vision.goal_position is not None:
-                gx, gy = int(vision.goal_position[0]), int(vision.goal_position[1])
-                cv2.circle(display, (gx, gy), 5, (0, 255, 0), -1)
-                cv2.circle(display, (gx, gy), 10, (0, 255, 0), 2)
-                cv2.putText(
-                    display,
-                    "GOAL",
-                    (gx - 30, gy - 25),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 255, 0),
-                    1
-                )
-
-                # Détecter et afficher le robot
-                robot_pose = vision.detect_robot_raw_pose()
-                if robot_pose is not None:
-                    x, y, theta = robot_pose
-                    rx, ry = int(x), int(y)
-
-                    # Cercle bleu pour la position
-                    cv2.circle(display, (rx, ry), 8, (255, 0, 0), -1)
-                    cv2.circle(display, (rx, ry), 12, (255, 0, 0), 2)
-
-                    # Flèche pour l'orientation
-                    arrow_length = 30
-                    end_x = int(rx + arrow_length * np.cos(theta))
-                    end_y = int(ry + arrow_length * np.sin(theta))
-                    cv2.arrowedLine(display, (rx, ry), (end_x, end_y), (255, 0, 0), 3, tipLength=0.3)
-
-                    # Afficher les coordonnées
-                    cv2.putText(
-                        display,
-                        f"Robot: ({rx}, {ry}, {np.degrees(theta):.1f}deg)",
-                        (10, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6,
-                        (255, 0, 0),
-                        2
-                    )
-
-            cv2.putText(
-                display,
-                f"CALIBRATED - Obstacles: {len(all_vertices)}",
-                (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (0, 255, 0),
-                2
-            )
-
-            cv2.imshow("Vision System - Calibrated View (Press 'q' to quit)", display)
-        else:
-            # Afficher la vue brute avec les coins détectés
-            display_frame = frame.copy()
-            if vision.corners is not None:
-                for i, (x, y) in enumerate(vision.corners):
-                    x, y = int(x), int(y)
-                    cv2.circle(display_frame, (x, y), 10, (0, 255, 0), -1)
-
-                pts = vision.corners.astype(np.int32).reshape((-1, 1, 2))
-                cv2.polylines(display_frame, [pts], True, (0, 255, 0), 2)
-
-            cv2.imshow("Vision System - Waiting for 4 markers...", display_frame)
-
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
-            break
-
+finally:
     vision.release()
-    cv2.destroyAllWindows()
-
+    visualizer.close()
+    print("System shutdown complete")
