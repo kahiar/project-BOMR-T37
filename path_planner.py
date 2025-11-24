@@ -22,7 +22,7 @@ class PathPlanner:
                   or None if no path exists
         """
         nodes = [start, goal] + [v for poly in obstacles for v in poly]
-        graph = self.build_visibility_graph(nodes, obstacles)
+        self.graph = self.build_visibility_graph(nodes, obstacles)
 
         path_idx, path_len = self.a_star(nodes, obstacles)
         print("Path indices:", path_idx)

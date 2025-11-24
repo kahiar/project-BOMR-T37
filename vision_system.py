@@ -376,7 +376,7 @@ try:
             info["Theta"] = f"{np.degrees(robot_pose[2]):.1f}°"
 
         # Path planning
-        start = np.array([vision.goal_position[0], vision.goal_position[1]])
+        start = np.array([robot_pose[0], robot_pose[1]])
         path = planner.compute_path(start, vision.goal_position, obstacles)
 
 
