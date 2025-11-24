@@ -34,8 +34,7 @@ class MotionController:
         Args:
             actual_pos: np.array [x, y, theta]
             target_pos: tuple (x, y)
-            min_angle: float
-            offset_speed: int
+            max_speed: int
             k_rho: float
             k_alpha: float
             r: float
@@ -59,11 +58,11 @@ class MotionController:
         phi2_dot = (v - l * omega) / r
 
         # If computed angular velocity surpasses maximum angular velocity of Thymio, reduce both wheel speeds equally.
-        phi_dot_max = np.max(phi1_dot,phi2_dot)
-        if phi_dot_max > max_speed
+        phi_dot_max = max(abs(phi1_dot), abs(phi2_dot))
+        if phi_dot_max > max_speed:
             decrease_ratio = max_speed / phi_dot_max
-            phi1_dot = decrease_ratio * phi1_dot
-            phi2_dot = decrease_ratio * phi2_dot
+            phi1_dot *= decrease_ratio
+            phi2_dot *= decrease_ratio
 
         return np.array([phi1_dot, phi2_dot])
 
