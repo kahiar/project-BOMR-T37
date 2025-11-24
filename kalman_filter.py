@@ -6,21 +6,27 @@ class KalmanFilter:
     Bayesian filtering for robot pose estimation.
     """
 
-    def __init__(self, initial_pose, process_noise=0.1, measurement_noise=1.0):
+    def __init__(self, initial_pose, process_noise=0.1, measurement_noise=1.0, wheel_base='???'):
         """
         Args:
             initial_pose: np.array [x, y, theta]
             process_noise: Process noise covariance (motion uncertainty)
             measurement_noise: Measurement noise covariance (vision uncertainty)
         """
-        self.state = initial_pose  # [x, y, theta]
-        self.P = np.eye(3) * 10  # Covariance matrix
+        self.state = initial_pose.astype(float)  # [x, y, theta]
+        self.P = np.eye(3) * 1.0  # Covariance matrix
 
         # Process noise (model)
-        self.Q = np.eye(3) * process_noise
+        self.Q = np.eye(3) * (process_noise**2) # to have the variance directly
 
         # Measurement noise (vision)
-        self.R = np.eye(3) * measurement_noise
+        self.R = np.eye(3) * (measurement_noise**2) # to have the variance directly
+
+        # Measurement Jacobian (constant identity since h(x) = x)
+        self.H = np.eye(3)
+
+        self.L = wheel_base  # Thymio wheel separation
+
 
     def predict(self, control_input, dt):
         """
@@ -36,7 +42,35 @@ class KalmanFilter:
         # TODO: Implement motion model
         # TODO: Predict next state using differential drive kinematics
         # TODO: Update covariance: P = F*P*F^T + Q
-        pass
+
+        vL, vR = control_input
+        x, y, theta = self.state
+
+        # Differential-drive kinematics
+        v = (vR + vL) / 2
+        omega = (vR - vL) / self.L
+
+        # ----- MOTION MODEL g(x,u) -----
+        x_pred = x + v * dt * np.cos(theta)
+        y_pred = y + v * dt * np.sin(theta)
+        theta_pred = theta + omega * dt
+
+        # Normalize angle
+        theta_pred = (theta_pred + np.pi) % (2*np.pi) - np.pi
+        
+        self.state = np.array([x_pred, y_pred, theta_pred])
+
+        # ----- JACOBIAN G -----
+        G = np.array([
+            [1, 0, -v * dt * np.sin(theta)],
+            [0, 1,  v * dt * np.cos(theta)],
+            [0, 0,  1]
+        ])
+
+        # ----- COVARIANCE UPDATE -----
+        self.P = G @ self.P @ G.T + self.Q
+
+        pass # jpense il faut enlever ça, mais jsp à quoi ça sert ? (rachid)
 
     def update(self, measurement):
         """
@@ -55,7 +89,33 @@ class KalmanFilter:
         # TODO: Innovation: y = measurement - H*state
         # TODO: Update state: state = state + K*y
         # TODO: Update covariance: P = (I - K*H)*P
-        pass
+
+        z = measurement.astype(float)
+
+        # Innovation i = z - h(x)
+        # and since h(x) = x, H = identity:
+        i = z - self.state
+
+        # Normalize the angle component
+        i[2] = (i[2] + np.pi) % (2*np.pi) - np.pi
+
+        # Innovation covariance
+        S = self.H @ self.P @ self.H.T + self.R
+
+        # Kalman gain
+        K = self.P @ self.H.T @ np.linalg.inv(S)
+
+        # State update
+        self.state = self.state + K @ i
+
+        # Normalize angle again
+        self.state[2] = (self.state[2] + np.pi) % (2*np.pi) - np.pi
+
+        # Covariance update
+        I = np.eye(3)
+        self.P = (I - K @ self.H) @ self.P
+
+        pass # jpense il faut enlever ça, mais jsp à quoi ça sert ? (rachid)
 
     def get_state(self):
         """
