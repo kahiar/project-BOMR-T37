@@ -26,9 +26,8 @@ class MotionController:
             [-80, -20, -20, 20, 80, 0, 12]
         ])
 
-    def compute_speed(self, actual_pos, target_pos,
-                      min_angle=np.pi / 2, offset_speed=200,
-                      k_forward=100, k_rot=3, is_near_checkpoint=False):
+    def compute_speed(self, actual_pos, target_pos, max_speed=200,
+                    k_rho=100, k_alpha=3, r, l):
         """
         Compute wheel speeds for differential drive to reach target.
 
@@ -37,25 +36,36 @@ class MotionController:
             target_pos: tuple (x, y)
             min_angle: float
             offset_speed: int
-            k_forward: float
-            k_rot: float
+            k_rho: float
+            k_alpha: float
+            r: float
+            l: float
             is_near_checkpoint: bool
 
         Returns:
             np.array: [left_speed, right_speed] motor commands
         """
+
         target_array = np.array(target_pos)
         delta_pos = target_array - actual_pos[0:2]
         alpha = -actual_pos[2] + np.arctan2(delta_pos[1], delta_pos[0])
-        alpha = (alpha + np.pi) % (2 * np.pi) - np.pi
+        alpha = (alpha + np.pi) % (2 * np.pi) - np.pi #wraps angle to (-pi, pi]
+        rho = np.linalg.norm(delta_pos)
 
-        # In-place rotation for large angles
-        if (abs(alpha) > min_angle) and is_near_checkpoint:
-            # TODO: implement in-place rotation
-            return np.array([int(speed_left), int(speed_right)])
-        else:
-            # TODO: implement forward motion
-            return np.array([int(speed_left), int(speed_right)])
+        v = k_rho * rho * np.cos(alpha) #linear velocity
+        omega = k_alpha * alpha #angular velocity
+
+        phi1_dot = (v + l * omega) / r
+        phi2_dot = (v - l * omega) / r)
+
+        # If computed angular velocity surpasses maximum angular velocity of Thymio, reduce both wheel speeds equally.
+        phi_dot_max = np.max(phi1_dot,phi2_dot)
+        if phi_dot_max > max_speed
+            decrease_ratio = phi_dot_max/max_speed
+            phi1_dot = decrease_ratio * phi1_dot
+            phi2_dot = decrease_ratio * phi2_dot
+
+        return np.array([phi1_dot, phi2_dot])
 
     def apply_local_avoidance(self, speed_robot, node):
         """
