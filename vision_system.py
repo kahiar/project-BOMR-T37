@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 from cv2 import aruco
 import matplotlib.pyplot as plt
+
+from path_planner import PathPlanner
 from visualizer import Visualizer
 
 
@@ -109,7 +111,7 @@ class VisionSystem:
                     # Transform goal position
                     goal_raw = np.array([[goal_marker]], dtype=np.float32)
                     goal_transf = cv2.perspectiveTransform(goal_raw, self.transform_matrix)
-                    self.goal_position = tuple(goal_transf[0][0])
+                    self.goal_position = np.array(goal_transf[0][0])
 
                     print("✓ Calibration complete!")
                     print(f"  Corners: {self.corners}")
@@ -304,10 +306,6 @@ class VisionSystem:
         if frame is None:
             return []
 
-        # TODO: Apply perspective transform
-        # TODO: Detect shapes using contour detection
-        # TODO: Filter for squares/rectangles
-        # TODO: Return obstacle corner points
         mask = self.filter_color(frame)
         edges = self.process_image(mask)
         scaled_contours, all_vertices = self.detect_contours(edges)
@@ -330,6 +328,7 @@ class VisionSystem:
 
 vision = VisionSystem()
 visualizer = Visualizer(window_name="Robot Debug View")
+planner = PathPlanner()
 
 try:
     # === PHASE 1: CALIBRATION (using the calibrate method!) ===
@@ -376,12 +375,17 @@ try:
             info["Y"] = f"{int(robot_pose[1])}"
             info["Theta"] = f"{np.degrees(robot_pose[2]):.1f}°"
 
+        # Path planning
+        start = np.array([robot_pose[0], robot_pose[1]])
+        path = planner.compute_path(start, vision.goal_position, obstacles)
+
+
         # Update visualization with everything
         visualizer.update(
             frame=frame,
             obstacles=obstacles,
             robot_pos=robot_pose,
-            path=None,  # Will add when path planner is ready
+            path=path,
             current_waypoint_idx=0,
             sensor_data=sensor_data,
             goal_pos=vision.goal_position,

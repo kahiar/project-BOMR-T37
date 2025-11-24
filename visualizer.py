@@ -161,7 +161,7 @@ class Visualizer:
 
         Args:
             frame: np.array, BGR image
-            path: list of waypoints [(x,y), ...]
+            path: list of np.array or tuples [(x,y), ...] or None
             current_waypoint_idx: int, index of current target
 
         Returns:
@@ -179,13 +179,13 @@ class Visualizer:
         # Draw waypoints
         for i, waypoint in enumerate(path):
             if i == current_waypoint_idx:
-                color = (255, 255, 0)  # Yellow for current target
+                color = (255, 255, 0)
                 radius = 8
             elif i < current_waypoint_idx:
-                color = (128, 128, 128)  # Gray for completed
+                color = (128, 128, 128)
                 radius = 4
             else:
-                color = (255, 200, 200)  # Light for upcoming
+                color = (255, 200, 200)
                 radius = 5
 
             cv2.circle(frame, (int(waypoint[0]), int(waypoint[1])), radius, color, -1)
