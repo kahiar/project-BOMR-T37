@@ -26,8 +26,8 @@ class MotionController:
             [-80, -20, -20, 20, 80, 0, 12]
         ])
 
-    def compute_speed(self, actual_pos, target_pos, max_speed=200,
-                    k_rho=100, k_alpha=3, r, l):
+    def compute_speed(self, actual_pos, target_pos, r, l, max_speed=200,
+                    k_rho=100, k_alpha=3):
         """
         Compute wheel speeds for differential drive to reach target.
 
@@ -56,12 +56,12 @@ class MotionController:
         omega = k_alpha * alpha #angular velocity
 
         phi1_dot = (v + l * omega) / r
-        phi2_dot = (v - l * omega) / r)
+        phi2_dot = (v - l * omega) / r
 
         # If computed angular velocity surpasses maximum angular velocity of Thymio, reduce both wheel speeds equally.
         phi_dot_max = np.max(phi1_dot,phi2_dot)
         if phi_dot_max > max_speed
-            decrease_ratio = phi_dot_max/max_speed
+            decrease_ratio = max_speed / phi_dot_max
             phi1_dot = decrease_ratio * phi1_dot
             phi2_dot = decrease_ratio * phi2_dot
 
