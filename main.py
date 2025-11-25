@@ -12,48 +12,67 @@ import numpy as np
 async def main():
     print("Initializing system...")
 
-    # Initialize vision
     vision = VisionSystem(camera_id=0)
-
-    # Initialize Kalman filter (will be set with first measurement)
-    initial_pose = np.array([0.0, 0.0, 0.0])
-    kalman = KalmanFilter(
-        initial_pose,
-        process_noise=0.1,
-        measurement_noise=1.0
-    )
-
-    # Initialize path planner
     planner = PathPlanner()
 
-    # Initialize motion controller
+    # Static Elements (corners, obstacles, goal and path)
+    vision.calibrate(
+        corner_ids={0, 2, 3, 5},
+        goal_id=1,
+        map_width=800,
+        map_height=600,
+    )
+    frame = vision.get_transform_frame()
+    obstacles = vision.detect_obstacles(frame)
+    robot_pose = vision.detect_robot_raw_pose(frame)
+    start = np.array([robot_pose[0], robot_pose[1]])
+    path = planner.compute_path(start, vision.goal_position, obstacles)
+
+    # Initialize kalman filter ?
+
+    # Initialize motion controller ?
     motion = MotionController(mm2px=1.0)  # Updated after vision.calibrate()
 
     # Initialize visualizer
     visualizer = Visualizer(window_name="Thymio Navigation")
 
-    # Main controller
-    controller = RobotController(vision, kalman, planner, motion, visualizer)
+    frame_count = 0
 
-    try:
-        # Connect to robot and navigate
-        client = ClientAsync()
-        await controller.connect(client)
-        print("System initialized")
-            # Update motion controller with calibrated mm2px
-            #motion.mm2px = vision.mm2px
-            #motion.wheel_radius = utils.WHEEL_RADIUS_MM * vision.mm2px
-            #motion.robot_width = utils.THYMIO_WIDTH_MM * vision.mm2px
+    while True:
+        frame = vision.get_transform_frame()
+        if frame is None:
+            continue
 
-            # Run navigation
-            #await controller.navigate_to_goal(client)
+        robot_pose = vision.detect_robot_raw_pose(frame)
 
-    finally:
-        # Cleanup
-        vision.release()
-        visualizer.close()
-        print("System shutdown complete")
+        info = {
+            "Frame": frame_count,
+            "Obstacles": len(obstacles),
+            "Robot": "DETECTED" if robot_pose is not None else "NOT FOUND"
+        }
 
+        if robot_pose is not None:
+            info["X"] = f"{int(robot_pose[0])}"
+            info["Y"] = f"{int(robot_pose[1])}"
+            info["Theta"] = f"{np.degrees(robot_pose[2]):.1f}°"
+
+        # TODO: controller implementation
+
+        # TODO: Filter implementation
+
+        # TODO: condition to recompute path
+
+
+        visualizer.update(
+            frame=frame,
+            obstacles=obstacles,
+            robot_pos=robot_pose,
+            path=path,
+            current_waypoint_idx=0,
+            sensor_data=sensor_data,
+            goal_pos=vision.goal_position,
+            info_dict=info
+        )
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -331,13 +331,21 @@ visualizer = Visualizer(window_name="Robot Debug View")
 planner = PathPlanner()
 
 try:
-    # === PHASE 1: CALIBRATION (using the calibrate method!) ===
+    # === PHASE 1: CALIBRATION ===
     vision.calibrate(
         corner_ids={0, 2, 3, 5},
         goal_id=1,
         map_width=800,
         map_height=600,
     )
+
+    # === Phase 2: Compute and store obstacles and path ===
+
+    frame = vision.get_transform_frame()
+    obstacles = vision.detect_obstacles(frame)
+    robot_pose = vision.detect_robot_raw_pose(frame)
+    start = np.array([robot_pose[0], robot_pose[1]])
+    path = planner.compute_path(start, vision.goal_position, obstacles)
 
     # === PHASE 2: NAVIGATION/DEBUG VIEW ===
     print("\n=== NAVIGATION DEBUG VIEW ===")
