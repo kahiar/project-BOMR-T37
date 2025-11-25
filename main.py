@@ -21,6 +21,7 @@ async def main():
         goal_id=1,
         map_width=800,
         map_height=600,
+        real_height=1200
     )
     frame = vision.get_transform_frame()
     obstacles = vision.detect_obstacles(frame)
@@ -30,7 +31,7 @@ async def main():
     # Initialize kalman filter ?
 
     # Initialize motion controller ?
-    motion = MotionController(mm2px=1.0)  # Updated after vision.calibrate()
+    motion = MotionController(mm2px=vision.mm2px)  # Updated after vision.calibrate()
 
     # Initialize visualizer
     visualizer = Visualizer(window_name="Thymio Navigation")

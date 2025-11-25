@@ -26,7 +26,7 @@ class VisionSystem:
         # This works as 'cache' to make sure every function gets same frame
         # self._current_transform_frame = None
 
-    def calibrate(self, corner_ids={0, 2, 3, 5}, goal_id=1, map_width=800, map_height=600):
+    def calibrate(self, corner_ids={0, 2, 3, 5}, goal_id=1, map_width=800, map_height=600, real_height=1000):
         """
         Detect map corners and goal using aruco markers.
 
@@ -107,6 +107,9 @@ class VisionSystem:
                         self.corners.astype(np.float32),
                         dst_pts
                     )
+
+                    # Compute mm2px
+                    self.mm2px = map_height /real_height
 
                     # Transform goal position
                     goal_raw = np.array([[goal_marker]], dtype=np.float32)
