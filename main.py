@@ -38,12 +38,24 @@ async def main():
 
     frame_count = 0
 
-    while True:
+    # Navigation loop
+
+    waipoint_idx = 0
+
+    while waipoint_idx < len(path):
         frame = vision.get_transform_frame()
         if frame is None:
             continue
 
         robot_pose = vision.detect_robot_raw_pose(frame)
+
+        # get thymio current motor speeds
+
+        # kalman filter to predict
+
+        # ???
+
+        # Visualizer  
 
         info = {
             "Frame": frame_count,
