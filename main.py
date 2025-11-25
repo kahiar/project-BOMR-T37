@@ -25,8 +25,7 @@ async def main():
     frame = vision.get_transform_frame()
     obstacles = vision.detect_obstacles(frame)
     robot_pose = vision.detect_robot_raw_pose(frame)
-    start = np.array([robot_pose[0], robot_pose[1]])
-    path = planner.compute_path(start, vision.goal_position, obstacles)
+    path = planner.compute_path(robot_pose[0:1], vision.goal_position, obstacles)
 
     # Initialize kalman filter ?
 
@@ -55,7 +54,7 @@ async def main():
 
         # ???
 
-        # Visualizer  
+        # Visualizer
 
         info = {
             "Frame": frame_count,
