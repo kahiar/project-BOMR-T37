@@ -1,4 +1,6 @@
 import numpy as np
+import pip
+
 import utils
 from tdmclient import aw
 
@@ -142,6 +144,119 @@ class MotionController:
         return np.array([x for x in node['prox.horizontal'][0:5]])
 
 
+class ThymioConnection:
+    """
+    Helper class to manage Thymio connection and avoid lock errors.
+
+    Usage:
+        with ThymioConnection() as (client, node):
+            # Use node here
+            pass
+        # Automatically unlocks when done or on error
+    """
+
+    def __init__(self, timeout=10):
+        self.timeout = timeout
+        self.client = None
+        self.node = None
+
+    def __enter__(self):
+        from tdmclient import ClientAsync
+
+        print("[Thymio] Connecting...")
+
+        self.client = ClientAsync()
+
+        # Wait for node with timeout
+        try:
+            self.node = aw(self.client.wait_for_node(timeout=self.timeout))
+        except Exception as e:
+            print(f"[Thymio] Connection failed: {e}")
+            raise
+
+        # Try to unlock first (in case previous session left it locked)
+        try:
+            aw(self.node.unlock())
+            print("[Thymio] Released previous lock")
+        except Exception:
+            pass  # No previous lock, that's fine
+
+        # Now lock for our session
+        try:
+            aw(self.node.lock())
+            print(f"[Thymio] Connected and locked: {self.node}")
+        except Exception as e:
+            print(f"[Thymio] Lock failed: {e}")
+            print("[Thymio] TIP: Try turning the robot off and on again")
+            raise
+
+        return self.client, self.node
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # Always try to stop motors and unlock
+        if self.node is not None:
+            try:
+                # Stop motors
+                aw(self.node.set_variables({
+                    "motor.left.target": [0],
+                    "motor.right.target": [0],
+                }))
+                print("[Thymio] Motors stopped")
+            except Exception:
+                pass
+
+            try:
+                aw(self.node.unlock())
+                print("[Thymio] Unlocked")
+            except Exception:
+                pass
+
+        # Close client
+        if self.client is not None:
+            try:
+                self.client.close()
+                print("[Thymio] Disconnected")
+            except Exception:
+                pass
+
+        return False  # Don't suppress exceptions
+
+
+def force_unlock_thymio():
+    """
+    Force unlock the Thymio if it's stuck in a locked state.
+    Run this if you get "Node lock error" and can't connect.
+    """
+    from tdmclient import ClientAsync
+
+    print("[Thymio] Attempting force unlock...")
+
+    try:
+        client = ClientAsync()
+        node = aw(client.wait_for_node(timeout=5))
+
+        # Stop motors first
+        try:
+            aw(node.set_variables({
+                "motor.left.target": [0],
+                "motor.right.target": [0],
+            }))
+        except:
+            pass
+
+        # Unlock
+        aw(node.unlock())
+        print("[Thymio] Force unlock successful!")
+
+        client.close()
+        return True
+
+    except Exception as e:
+        print(f"[Thymio] Force unlock failed: {e}")
+        print("[Thymio] Try turning the robot off and on again")
+        return False
+
+
 # TEST AREA
 
 if __name__ == "__main__":
@@ -160,7 +275,9 @@ if __name__ == "__main__":
         print("\n[1] Connecting to Thymio...")
 
         with ClientAsync() as client:
-            async with client.lock() as node:
+            with await client.lock() as node:
+                node = node
+                await node.watch(variables=True)
                 print(f"    Connected to: {node}")
 
                 # Create controller (using dummy mm2px since we don't need vision)
