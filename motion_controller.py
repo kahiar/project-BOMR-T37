@@ -24,8 +24,8 @@ class MotionController:
         self.k_ann = 1500
         self.offset_ann = 150
         self.w = np.array([
-            [80, 20, -25, -20, -80, 12, 0],
-            [-80, -20, -20, 20, 80, 0, 12]
+            [40,  20, -20, -20, -40,  30, -10],
+            [-40, -20, -20,  20,  40, -10,  30]
         ])
 
     def compute_speed(self, actual_pos, target_pos, r, l, max_speed=200,
@@ -83,34 +83,21 @@ class MotionController:
         aw(node.wait_for_variables({"prox.horizontal"}))
         prox_horizontal = list(node["prox.horizontal"])
 
-        # Scale factor for sensors
         sensor_scale = 200
 
-        # Build input vector: 5 front sensors + 2 memory values
+        y = [0, 0]
         x = np.zeros(7)
 
         # Get and scale the 5 front proximity sensors
-        for i in range(5):
+        for i in range(len(x)):
             x[i] = prox_horizontal[i] / sensor_scale
+            # Compute outputs
+            y[0] = speed_robot[0] + x[i] * self.w[0][i]
+            y[1] = speed_robot[1] + x[i] * self.w[1][i]
 
-        # Memory component (previous outputs scaled down)
-        x[5] = self.prox_and_memory[5]
-        x[6] = self.prox_and_memory[6]
+        print(f"Computed speed: {y}")
 
-        # Compute ANN outputs using weight matrix
-        delta_left = np.dot(self.w[0], x)
-        delta_right = np.dot(self.w[1], x)
-
-        # Update memory for next iteration
-        self.prox_and_memory[0:5] = x[0:5]
-        self.prox_and_memory[5] = delta_left / 10
-        self.prox_and_memory[6] = delta_right / 10
-
-        # Add avoidance correction to desired speed
-        corrected_speed = np.array([
-            speed_robot[0] + delta_left,
-            speed_robot[1] + delta_right
-        ])
+        corrected_speed = np.array([y[0], y[1]])
 
         return corrected_speed
 
@@ -161,36 +148,24 @@ class ThymioConnection:
         self.node = None
 
     def __enter__(self):
-        from tdmclient import ClientAsync
+        from tdmclient import ClientAsync, aw
 
         print("[Thymio] Connecting...")
 
         self.client = ClientAsync()
 
-        # Wait for node with timeout
         try:
-            self.node = aw(self.client.wait_for_node(timeout=self.timeout))
+            self._connect()
+            aw(self.node.lock())
+            print(f"[Thymio] Connected and locked: {self.node}")
         except Exception as e:
             print(f"[Thymio] Connection failed: {e}")
             raise
 
-        # Try to unlock first (in case previous session left it locked)
-        try:
-            aw(self.node.unlock())
-            print("[Thymio] Released previous lock")
-        except Exception:
-            pass  # No previous lock, that's fine
-
-        # Now lock for our session
-        try:
-            aw(self.node.lock())
-            print(f"[Thymio] Connected and locked: {self.node}")
-        except Exception as e:
-            print(f"[Thymio] Lock failed: {e}")
-            print("[Thymio] TIP: Try turning the robot off and on again")
-            raise
-
         return self.client, self.node
+
+    async def _connect(self):
+        self.node = await self.client.wait_for_node()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         # Always try to stop motors and unlock
@@ -260,87 +235,78 @@ def force_unlock_thymio():
 # TEST AREA
 
 if __name__ == "__main__":
-    import asyncio
-    from tdmclient import ClientAsync
     import time
+    import sys
 
-    async def test_motion_controller():
-        """Test set_speed and apply_local_avoidance functions"""
+    # Create dummy utils module if not available
+    class DummyUtils:
+        WHEEL_RADIUS_MM = 21
+        THYMIO_WIDTH_MM = 95
 
+    sys.modules['utils'] = DummyUtils()
+
+    def run_tests():
         print("=" * 50)
         print("MOTION CONTROLLER TEST")
         print("=" * 50)
+        print("\nOptions:")
+        print("  1 - Run full test")
+        print("  2 - Force unlock (use if you get lock errors)")
+        print("  q - Quit")
 
-        # Connect to Thymio
-        print("\n[1] Connecting to Thymio...")
+        choice = input("\nEnter choice: ").strip().lower()
 
-        with ClientAsync() as client:
-            with await client.lock() as node:
-                node = node
-                await node.watch(variables=True)
-                print(f"    Connected to: {node}")
+        if choice == '2':
+            force_unlock_thymio()
+            return
+        elif choice == 'q':
+            return
+        elif choice != '1':
+            print("Invalid choice")
+            return
 
-                # Create controller (using dummy mm2px since we don't need vision)
-                # We won't use wheel_radius/robot_width in this test
-                class DummyUtils:
-                    WHEEL_RADIUS_MM = 21
-                    THYMIO_WIDTH_MM = 95
+        # Use the context manager for safe connection handling
+        with ThymioConnection() as (client, node):
 
-                # Temporarily replace utils
-                import sys
-                sys.modules['utils'] = DummyUtils()
+            controller = MotionController(mm2px=1.0)
 
-                controller = MotionController(mm2px=1.0)
+            # ---------------------------------------------------------
+            # TEST 1: set_speed function
+            # ---------------------------------------------------------
+            print("\n[TEST 1] set_speed function")
+            print("    Robot will move FORWARD for 2 seconds...")
 
-                # -------------------------------------------------------------
-                # TEST 1: set_speed function
-                # -------------------------------------------------------------
-                print("\n[2] TEST: set_speed function")
-                print("    Robot will move FORWARD for 2 seconds...")
-                print("    Press Ctrl+C to abort at any time")
+            input("    Press ENTER to start...")
 
-                input("    Press ENTER to start test 1...")
+            # Move forward
+            controller.set_speed(np.array([100, 100]), node)
+            time.sleep(2)
 
-                # Move forward
-                controller.set_speed(np.array([100, 100]), node)
-                time.sleep(2)
+            # Stop
+            controller.set_speed(np.array([0, 0]), node)
+            print("    ✓ Turn test complete")
 
-                # Stop
-                controller.set_speed(np.array([0, 0]), node)
-                print("    ✓ Forward motion test complete")
+            # ---------------------------------------------------------
+            # TEST 2: apply_local_avoidance function
+            # ---------------------------------------------------------
+            print("\n[TEST 2] apply_local_avoidance function")
+            print("    Robot will move forward and avoid obstacles")
+            print("    Place your hand in front of sensors to test")
+            print("    Test runs for 15 seconds (Ctrl+C to stop early)")
 
-                time.sleep(1)
+            input("    Press ENTER to start...")
 
-                print("\n    Robot will TURN LEFT for 1 second...")
-                input("    Press ENTER to continue...")
+            base_speed = np.array([80, 80])
+            start_time = time.time()
 
-                # Turn left (right wheel faster)
-                controller.set_speed(np.array([50, 150]), node)
-                time.sleep(1)
-
-                # Stop
-                controller.set_speed(np.array([0, 0]), node)
-                print("    ✓ Turn test complete")
-
-                # -------------------------------------------------------------
-                # TEST 2: apply_local_avoidance function
-                # -------------------------------------------------------------
-                print("\n[3] TEST: apply_local_avoidance function")
-                print("    Robot will move forward and avoid obstacles")
-                print("    Place your hand in front of the sensors to test")
-                print("    Test runs for 15 seconds")
-
-                input("    Press ENTER to start test 2...")
-
-                base_speed = np.array([80, 80])  # Base forward speed
-                start_time = time.time()
-
+            try:
                 while time.time() - start_time < 15:
                     # Get sensor data for display
                     sensors = controller.get_sensor_data(node)
 
                     # Apply local avoidance
                     corrected_speed = controller.apply_local_avoidance(base_speed.copy(), node)
+                    print(f"Before: [80, 80] After: {corrected_speed}")
 
                     # Clip speeds to valid range
                     corrected_speed = np.clip(corrected_speed, -500, 500)
@@ -349,35 +315,50 @@ if __name__ == "__main__":
                     controller.set_speed(corrected_speed, node)
 
                     # Print debug info
-                    print(f"\r    Sensors: {sensors} | Speed: L={int(corrected_speed[0]):4d} R={int(corrected_speed[1]):4d}", end="")
+                    print(f"\r    Sensors: {sensors} | L={int(corrected_speed[0]):4d} R={int(corrected_speed[1]):4d}", end="")
 
                     time.sleep(0.1)
+            except KeyboardInterrupt:
+                print("\n    Stopped by user")
 
-                # Stop robot
-                controller.set_speed(np.array([0, 0]), node)
-                print("\n    ✓ Local avoidance test complete")
+            # Stop robot
+            controller.set_speed(np.array([0, 0]), node)
+            print("\n    ✓ Local avoidance test complete")
 
-                # -------------------------------------------------------------
-                # TEST 3: Sensor reading test (for tuning)
-                # -------------------------------------------------------------
-                print("\n[4] TEST: Sensor reading (for weight tuning)")
-                print("    Move your hand in front of sensors to see values")
-                print("    Test runs for 10 seconds")
+            # ---------------------------------------------------------
+            # TEST 3: Sensor reading (for tuning)
+            # ---------------------------------------------------------
+            print("\n[TEST 3] Sensor reading (for weight tuning)")
+            print("    Move your hand in front of sensors to see values")
+            print("    Test runs for 10 seconds (Ctrl+C to stop early)")
 
-                input("    Press ENTER to start test 3...")
+            input("    Press ENTER to start...")
 
-                start_time = time.time()
+            start_time = time.time()
+            try:
                 while time.time() - start_time < 10:
                     sensors = controller.get_sensor_data(node)
                     print(f"\r    [FL:{sensors[0]:4d}] [L:{sensors[1]:4d}] [C:{sensors[2]:4d}] [R:{sensors[3]:4d}] [FR:{sensors[4]:4d}]", end="")
                     time.sleep(0.1)
+            except KeyboardInterrupt:
+                print("\n    Stopped by user")
 
-                print("\n    ✓ Sensor test complete")
+            print("\n    ✓ Sensor test complete")
 
-                print("\n" + "=" * 50)
-                print("ALL TESTS COMPLETE")
-                print("=" * 50)
+        # Connection is automatically cleaned up here
+        print("\n" + "=" * 50)
+        print("ALL TESTS COMPLETE")
+        print("=" * 50)
 
-    # Run the test
-    asyncio.run(test_motion_controller())
+    # Run tests
+    try:
+        run_tests()
+    except KeyboardInterrupt:
+        print("\n\nTest interrupted by user")
+        # Try to force unlock on interrupt
+        force_unlock_thymio()
+    except Exception as e:
+        print(f"\n\nError: {e}")
+        # Try to force unlock on error
+        force_unlock_thymio()
 
