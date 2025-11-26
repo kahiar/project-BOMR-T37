@@ -1,4 +1,6 @@
 import numpy as np
+import utils
+from utils import THYMIO_WIDTH_MM
 
 
 class KalmanFilter:
@@ -6,7 +8,7 @@ class KalmanFilter:
     Bayesian filtering for robot pose estimation.
     """
 
-    def __init__(self, initial_pose, process_noise=0.1, measurement_noise=1.0, wheel_base='???'):
+    def __init__(self, initial_pose, process_noise=0.1, measurement_noise=1.0):
         """
         Args:
             initial_pose: np.array [x, y, theta]
@@ -25,7 +27,7 @@ class KalmanFilter:
         # Measurement Jacobian (constant identity since h(x) = x)
         self.H = np.eye(3)
 
-        self.L = wheel_base  # Thymio wheel separation
+        self.L = THYMIO_WIDTH_MM  # Thymio wheel separation
 
 
     def predict(self, control_input, dt):
@@ -39,10 +41,6 @@ class KalmanFilter:
         Updates:
             self.state, self.P (predicted state and covariance)
         """
-        # TODO: Implement motion model
-        # TODO: Predict next state using differential drive kinematics
-        # TODO: Update covariance: P = F*P*F^T + Q
-
         vL, vR = control_input
         x, y, theta = self.state
 
@@ -70,8 +68,6 @@ class KalmanFilter:
         # ----- COVARIANCE UPDATE -----
         self.P = G @ self.P @ G.T + self.Q
 
-        pass # jpense il faut enlever ça, mais jsp à quoi ça sert ? (rachid)
-
     def update(self, measurement):
         """
         Correct prediction with vision measurement.
@@ -83,12 +79,8 @@ class KalmanFilter:
             self.state, self.P (corrected state and covariance)
         """
         if measurement is None:
+            # TODO: Implement prediction with only robot speed
             return  # No measurement, keep predicted state
-
-        # TODO: Kalman gain: K = P*H^T*(H*P*H^T + R)^-1
-        # TODO: Innovation: y = measurement - H*state
-        # TODO: Update state: state = state + K*y
-        # TODO: Update covariance: P = (I - K*H)*P
 
         z = measurement.astype(float)
 
@@ -115,8 +107,6 @@ class KalmanFilter:
         I = np.eye(3)
         self.P = (I - K @ self.H) @ self.P
 
-        pass # jpense il faut enlever ça, mais jsp à quoi ça sert ? (rachid)
-
     def get_state(self):
         """
         Current filtered pose estimate.
@@ -124,4 +114,4 @@ class KalmanFilter:
         Returns:
             np.array: [x, y, theta] filtered pose
         """
-        return self.state.copy()
+        return self.state

@@ -28,10 +28,11 @@ async def main():
     robot_pose = vision.detect_robot_raw_pose(frame)
     path = planner.compute_path(robot_pose[0:1], vision.goal_position, obstacles)
 
-    # Initialize kalman filter ?
+    # Initialize kalman filter
+    kalman = KalmanFilter(robot_pose)
 
     # Initialize motion controller ?
-    motion = MotionController(mm2px=vision.mm2px)  # Updated after vision.calibrate()
+    motion = MotionController(mm2px=vision.mm2px) # Updated after vision.calibrate()
 
     # Initialize visualizer
     visualizer = Visualizer(window_name="Thymio Navigation")
