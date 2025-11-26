@@ -68,40 +68,71 @@ class MotionController:
 
         return np.array([phi1_dot, phi2_dot])
 
-    def apply_local_avoidance(self, speed_robot, node):
+    def upload_local_avoidance(self, node, base_speed=80, threshold=1000):
         """
-        Apply reactive obstacle avoidance based on proximity sensors.
+        Upload ANN obstacle avoidance to run directly on Thymio at 10Hz.
 
         Args:
-            speed_robot: np.array [left_speed, right_speed] desired speeds
-            node: Thymio node for reading sensors
-
-        Returns:
-            np.array: [left_speed, right_speed] corrected speeds
+            node: Thymio node
+            base_speed: Base forward speed when no obstacles
+            threshold: Minimum sensor value to trigger avoidance (0-4500)
         """
-        # Read proximity sensors
-        aw(node.wait_for_variables({"prox.horizontal"}))
-        prox_horizontal = list(node["prox.horizontal"])
+        program = f"""
+    var w_l[7]
+    var w_r[7]
+    var sensor_scale
+    var y[2]
+    var x[7]
+    var i
+    var max_prox
 
+    onevent prox
+        w_l = [40, 20, -20, -20, -40, 30, -10]
+        w_r = [-40, -20, -20, 20, 40, -10, 30]
         sensor_scale = 200
+        y = [{base_speed}, {base_speed}]
+        x = [0, 0, 0, 0, 0, 0, 0]
 
-        y = [0, 0]
-        x = np.zeros(7)
+        max_prox = 0
+        i = 0
+        while i < 7 do
+            if prox.horizontal[i] > max_prox then
+                max_prox = prox.horizontal[i]
+            end
+            i++
+        end
 
-        # Get and scale the 5 front proximity sensors
-        for i in range(len(x)):
-            x[i] = prox_horizontal[i] / sensor_scale
-            # Compute outputs
-            y[0] = speed_robot[0] + x[i] * self.w[0][i]
-            y[1] = speed_robot[1] + x[i] * self.w[1][i]
+        if max_prox > {threshold} then
+            i = 0
+            while i < 7 do
+                x[i] = prox.horizontal[i] / sensor_scale
+                y[0] = y[0] + x[i] * w_l[i]
+                y[1] = y[1] + x[i] * w_r[i]
+                i++
+            end
+        end
 
-        print(f"Computed speed: {y}")
+        motor.left.target = y[0]
+        motor.right.target = y[1]
+    """
 
-        corrected_speed = np.array([y[0], y[1]])
+        error = aw(node.compile(program))
+        if error is not None:
+            print(f"[Thymio] Compilation error: {error}")
+            return False
 
-        return corrected_speed
+        aw(node.run())
+        print(f"[Thymio] ANN uploaded (threshold={threshold}, base_speed={base_speed})")
+        return True
 
-        return speed_robot
+    def stop_program(self, node):
+        """Stop the running program and motors."""
+        aw(node.stop())
+        aw(node.set_variables({
+            "motor.left.target": [0],
+            "motor.right.target": [0],
+        }))
+        print("[Thymio] Program stopped")
 
     def set_speed(self, speed, node):
         """
@@ -155,7 +186,7 @@ class ThymioConnection:
         self.client = ClientAsync()
 
         try:
-            self._connect()
+            self.node = aw(self.client.wait_for_node(timeout=self.timeout))
             aw(self.node.lock())
             print(f"[Thymio] Connected and locked: {self.node}")
         except Exception as e:
@@ -163,9 +194,6 @@ class ThymioConnection:
             raise
 
         return self.client, self.node
-
-    async def _connect(self):
-        self.node = await self.client.wait_for_node()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         # Always try to stop motors and unlock
@@ -181,6 +209,7 @@ class ThymioConnection:
                 pass
 
             try:
+                aw(self.node.stop())
                 aw(self.node.unlock())
                 print("[Thymio] Unlocked")
             except Exception:
@@ -220,6 +249,7 @@ def force_unlock_thymio():
             pass
 
         # Unlock
+        aw(node.stop())
         aw(node.unlock())
         print("[Thymio] Force unlock successful!")
 
@@ -296,28 +326,19 @@ if __name__ == "__main__":
 
             input("    Press ENTER to start...")
 
-            base_speed = np.array([80, 80])
+            base_speed = np.array([100, 100])
             start_time = time.time()
 
             try:
-                while time.time() - start_time < 15:
-                    # Get sensor data for display
-                    sensors = controller.get_sensor_data(node)
+                # Upload and run - avoidance now runs autonomously at 10Hz on Thymio
+                controller.upload_local_avoidance(node, base_speed=100, threshold=1500)
 
-                    # Apply local avoidance
-                    corrected_speed = controller.apply_local_avoidance(base_speed.copy(), node)
-                    print(f"Before: [80, 80] After: {corrected_speed}")
+                # Let it run for 15 seconds
+                print("Running autonomous avoidance for 15 seconds...")
+                time.sleep(30)
 
-                    # Clip speeds to valid range
-                    corrected_speed = np.clip(corrected_speed, -500, 500)
-
-                    # Set the corrected speed
-                    controller.set_speed(corrected_speed, node)
-
-                    # Print debug info
-                    print(f"\r    Sensors: {sensors} | L={int(corrected_speed[0]):4d} R={int(corrected_speed[1]):4d}", end="")
-
-                    time.sleep(0.1)
+                # Stop
+                controller.stop_program(node)
             except KeyboardInterrupt:
                 print("\n    Stopped by user")
 
