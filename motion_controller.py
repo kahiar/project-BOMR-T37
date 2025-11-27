@@ -28,20 +28,19 @@ class MotionController:
             [-40, -20, -20,  20,  40, -10,  30]
         ])
 
-    def compute_speed(self, actual_pos, target_pos, r, l, max_speed=200,
+    def compute_speed(self, actual_pos, target_pos, r, l, max_speed=500,
                     k_rho=100, k_alpha=3):
         """
         Compute wheel speeds for differential drive to reach target.
 
         Args:
             actual_pos: np.array [x, y, theta]
-            target_pos: tuple (x, y)
+            target_pos: np.array [x, y]
+            r: right speed
+            l: left speed
             max_speed: int
             k_rho: float
             k_alpha: float
-            r: float
-            l: float
-            is_near_checkpoint: bool
 
         Returns:
             np.array: [left_speed, right_speed] motor commands
@@ -74,8 +73,8 @@ class MotionController:
 
         Args:
             node: Thymio node
-            base_speed: Base forward speed when no obstacles
-            threshold: Minimum sensor value to trigger avoidance (0-4500)
+            base_speed
+            threshold: value to trigger avoidance (0-4500)
         """
         program = f"""
     var w_l[7]
@@ -181,8 +180,6 @@ class ThymioConnection:
     def __enter__(self):
         from tdmclient import ClientAsync, aw
 
-        print("[Thymio] Connecting...")
-
         self.client = ClientAsync()
 
         try:
@@ -215,7 +212,6 @@ class ThymioConnection:
             except Exception:
                 pass
 
-        # Close client
         if self.client is not None:
             try:
                 self.client.close()
@@ -229,7 +225,6 @@ class ThymioConnection:
 def force_unlock_thymio():
     """
     Force unlock the Thymio if it's stuck in a locked state.
-    Run this if you get "Node lock error" and can't connect.
     """
     from tdmclient import ClientAsync
 
@@ -239,7 +234,6 @@ def force_unlock_thymio():
         client = ClientAsync()
         node = aw(client.wait_for_node(timeout=5))
 
-        # Stop motors first
         try:
             aw(node.set_variables({
                 "motor.left.target": [0],
@@ -334,7 +328,7 @@ if __name__ == "__main__":
                 controller.upload_local_avoidance(node, base_speed=100, threshold=1500)
 
                 # Let it run for 15 seconds
-                print("Running autonomous avoidance for 15 seconds...")
+                print("Running autonomous avoidance for 30 seconds...")
                 time.sleep(30)
 
                 # Stop
