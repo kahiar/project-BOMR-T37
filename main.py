@@ -40,6 +40,7 @@ async def main():
     with ThymioConnection() as (client, node):
 
         motion = MotionController(mm2px=vision.mm2px)
+        motion.upload_local_avoidance(node)
         frame_count = 0
         last_time = time.time()
 
