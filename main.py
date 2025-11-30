@@ -47,14 +47,14 @@ async def main():
 
         motion = MotionController(mm2px=vision.mm2px)
         print("motion started")
-        #motion.upload_local_avoidance(node)
+        motion.upload_local_avoidance(node)
         frame_count = 0
         last_time = time.time()
 
         # Navigation loop
         waypoint_idx = 0
 
-        WAYPOINT_THRESHOLD = 10
+        WAYPOINT_THRESHOLD = 30
 
         while waypoint_idx < len(path):
             frame = vision.get_transform_frame()

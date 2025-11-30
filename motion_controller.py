@@ -29,7 +29,7 @@ class MotionController:
         ])
 
     def compute_speed(self, actual_pos, target_pos, r, l, max_speed=500,
-                    k_rho=100, k_alpha=3):
+                    k_rho=30, k_alpha=60):
         """
         Compute wheel speeds for differential drive to reach target.
 
@@ -89,7 +89,7 @@ class MotionController:
         w_l = [40, 20, -20, -20, -40, 30, -10]
         w_r = [-40, -20, -20, 20, 40, -10, 30]
         sensor_scale = 200
-        y = [{base_speed}, {base_speed}]
+        y = [motor.left.speed, motor.right.speed]
         x = [0, 0, 0, 0, 0, 0, 0]
 
         max_prox = 0
