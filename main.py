@@ -51,7 +51,12 @@ async def main():
         frame_count = 0
         last_time = time.time()
 
-        while True: # TODO: change this condition
+        # Navigation loop
+        waypoint_idx = 0
+
+        WAYPOINT_THRESHOLD = 10
+
+        while waypoint_idx < len(path):
             frame = vision.get_transform_frame()
             if frame is None:
                 continue
@@ -73,16 +78,39 @@ async def main():
 
             # kalman filter to predict
             kalman.predict(current_speed[0:2], dt)
-            kalman.update(robot_pose)
+            #kalman.update(robot_pose)
+            kalman.state = robot_pose
             print(f"predicted speed: {kalman.state[0], kalman.state[1]}")
 
+            current_waypoint = path[waypoint_idx]
+
+            distance_to_waypoint = np.linalg.norm(robot_pose[0:2] - current_waypoint)
+
+            if distance_to_waypoint < WAYPOINT_THRESHOLD:
+                waypoint_idx += 1
+                print(f"Waypoint {waypoint_idx}/{len(path)} atteint!")
+
+                if waypoint_idx >= len(path):
+                    motion.set_speed(np.array([0, 0]), node)
+                    print("The END!!!")
+                    break
+
+                # Set next waypoint
+            current_waypoint = path[waypoint_idx]
+
             # Compute speed
-            target_speed = motion.compute_speed(kalman.state, vision.goal_position,
-                                                WHEEL_RADIUS_MM , THYMIO_WIDTH_MM/2)
+            target_speed = motion.compute_speed(
+                kalman.state,
+                current_waypoint,
+                WHEEL_RADIUS_MM ,
+                THYMIO_WIDTH_MM/2
+            )
             print(f"target speed: {target_speed}")
 
             # Set speed
             motion.set_speed(target_speed, node)
+
+            # TODO: condition to recompute path
 
             # Visualizer
 
@@ -96,8 +124,6 @@ async def main():
                 info["X"] = f"{int(robot_pose[0])}"
                 info["Y"] = f"{int(robot_pose[1])}"
                 info["Theta"] = f"{np.degrees(robot_pose[2]):.1f}°"
-
-            # TODO: condition to recompute path
 
             visualizer.update(
                 frame=frame,
