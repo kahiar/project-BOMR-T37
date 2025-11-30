@@ -8,7 +8,7 @@ class KalmanFilter:
     Bayesian filtering for robot pose estimation.
     """
 
-    def __init__(self, initial_pose):
+    def __init__(self, initial_pose, mm2px):
         """
         Args:
             initial_pose: np.array [x, y, theta]
@@ -27,7 +27,7 @@ class KalmanFilter:
         # Measurement Jacobian (constant identity since h(x) = x)
         self.H = np.eye(3)
 
-        self.L = THYMIO_WIDTH_MM  # Thymio wheel separation
+        self.L = THYMIO_WIDTH_MM * mm2px # Thymio wheel separation
 
 
     def predict(self, control_input, dt):
@@ -79,7 +79,7 @@ class KalmanFilter:
             self.state, self.P (corrected state and covariance)
         """
         if measurement is None:
-            # TODO: Implement prediction with only robot speed
+            self.P += self.Q * 0.5
             return  # No measurement, keep predicted state
 
         z = measurement.astype(float)

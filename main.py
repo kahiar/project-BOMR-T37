@@ -3,7 +3,7 @@ import time
 
 from tdmclient import ClientAsync, aw
 
-from utils import WHEEL_RADIUS_MM, THYMIO_WIDTH_MM
+from utils import WHEEL_RADIUS_MM, THYMIO_WIDTH_MM, THYMIO2MMS
 from vision_system import VisionSystem
 from kalman_filter import KalmanFilter
 from path_planner import PathPlanner
@@ -35,7 +35,7 @@ async def main():
     path = planner.compute_path(robot_pose[0:2], vision.goal_position, obstacles)
     print("path")
     # Initialize kalman filter
-    kalman = KalmanFilter(robot_pose)
+    kalman = KalmanFilter(robot_pose, vision.mm2px)
     print("Kalman started")
 
     # Initialize visualizer
@@ -54,7 +54,7 @@ async def main():
         # Navigation loop
         waypoint_idx = 0
 
-        WAYPOINT_THRESHOLD = 30
+        WAYPOINT_THRESHOLD = 50
 
         while waypoint_idx < len(path):
             frame = vision.get_transform_frame()
@@ -69,6 +69,12 @@ async def main():
                 node["motor.left.speed"],
                 node["motor.right.speed"]
             ])
+            # Convert to mm/s
+            current_speed_mms = current_speed * THYMIO2MMS
+
+            # Convert to px/s
+            current_speed_pixs = current_speed_mms * vision.mm2px
+
             sensor_data = np.array([1000, 500, 200, 300, 800])
 
             # dt
@@ -77,14 +83,14 @@ async def main():
             last_time = current_time
 
             # kalman filter to predict
-            kalman.predict(current_speed[0:2], dt)
-            #kalman.update(robot_pose)
-            kalman.state = robot_pose
-            print(f"predicted speed: {kalman.state[0], kalman.state[1]}")
+            kalman.predict(current_speed_pixs[0:2], dt)
+            kalman.update(robot_pose)
+            #kalman.state = robot_pose
+            print(f"predicted pos: {kalman.state[0], kalman.state[1]}")
 
             current_waypoint = path[waypoint_idx]
 
-            distance_to_waypoint = np.linalg.norm(robot_pose[0:2] - current_waypoint)
+            distance_to_waypoint = np.linalg.norm(kalman.state[0:2] - current_waypoint)
 
             if distance_to_waypoint < WAYPOINT_THRESHOLD:
                 waypoint_idx += 1

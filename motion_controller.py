@@ -29,7 +29,7 @@ class MotionController:
         ])
 
     def compute_speed(self, actual_pos, target_pos, r, l, max_speed=500,
-                    k_rho=30, k_alpha=60):
+                    k_rho=20, k_alpha=40):
         """
         Compute wheel speeds for differential drive to reach target.
 
