@@ -2,6 +2,8 @@ import asyncio
 import time
 
 from tdmclient import ClientAsync, aw
+
+from utils import WHEEL_RADIUS_MM, THYMIO_WIDTH_MM
 from vision_system import VisionSystem
 from kalman_filter import KalmanFilter
 from path_planner import PathPlanner
@@ -15,6 +17,7 @@ async def main():
     print("Initializing system...")
 
     vision = VisionSystem(camera_id=0)
+    print("pre-planner")
     planner = PathPlanner()
 
     # Static Elements (corners, obstacles, goal and path)
@@ -28,19 +31,23 @@ async def main():
     frame = vision.get_transform_frame()
     obstacles = vision.detect_obstacles(frame)
     robot_pose = vision.detect_robot_raw_pose(frame)
-    path = planner.compute_path(robot_pose[0:1], vision.goal_position, obstacles)
-
+    print("mid")
+    path = planner.compute_path(robot_pose[0:2], vision.goal_position, obstacles)
+    print("path")
     # Initialize kalman filter
     kalman = KalmanFilter(robot_pose)
+    print("Kalman started")
 
     # Initialize visualizer
     visualizer = Visualizer(window_name="Thymio Navigation")
+    print("initializer started")
 
     # Initialize motion controller
     with ThymioConnection() as (client, node):
 
         motion = MotionController(mm2px=vision.mm2px)
-        motion.upload_local_avoidance(node)
+        print("motion started")
+        #motion.upload_local_avoidance(node)
         frame_count = 0
         last_time = time.time()
 
@@ -50,18 +57,14 @@ async def main():
                 continue
 
             robot_pose = vision.detect_robot_raw_pose(frame)
-
+            print(f"robot_pose: {robot_pose}")
             # get all thymio data we need at once
             aw(node.wait_for_variables())
             current_speed = np.array([
                 node["motor.left.speed"],
                 node["motor.right.speed"]
             ])
-            sensor_data = np.array(node["prox.horizontal"])
-
-            # Compute speed
-            target_speed = motion.compute_speed(robot_pose, vision.goal_position,
-                                                current_speed[1], current_speed[0])
+            sensor_data = np.array([1000, 500, 200, 300, 800])
 
             # dt
             current_time = time.time()
@@ -69,11 +72,17 @@ async def main():
             last_time = current_time
 
             # kalman filter to predict
-            kalman.predict(target_speed, dt)
+            kalman.predict(current_speed[0:2], dt)
             kalman.update(robot_pose)
+            print(f"predicted speed: {kalman.state[0], kalman.state[1]}")
+
+            # Compute speed
+            target_speed = motion.compute_speed(kalman.state, vision.goal_position,
+                                                WHEEL_RADIUS_MM , THYMIO_WIDTH_MM/2)
+            print(f"target speed: {target_speed}")
 
             # Set speed
-            motion.set_speed(kalman.state[0], kalman.state[1])
+            motion.set_speed(target_speed, node)
 
             # Visualizer
 

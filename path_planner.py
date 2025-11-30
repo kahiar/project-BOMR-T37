@@ -25,7 +25,6 @@ class PathPlanner:
         self.graph = self.build_visibility_graph(nodes, obstacles)
 
         path_idx, path_len = self.a_star(nodes, obstacles)
-        print("Path indices:", path_idx)
         print("Path length:", path_len)
 
         if path_idx is not None:

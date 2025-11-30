@@ -183,7 +183,7 @@ class ThymioConnection:
         self.client = ClientAsync()
 
         try:
-            self.node = aw(self.client.wait_for_node(timeout=self.timeout))
+            self.node = aw(self.client.wait_for_node())
             aw(self.node.lock())
             print(f"[Thymio] Connected and locked: {self.node}")
         except Exception as e:
