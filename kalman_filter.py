@@ -8,7 +8,7 @@ class KalmanFilter:
     Bayesian filtering for robot pose estimation.
     """
 
-    def __init__(self, initial_pose, process_noise=0.1, measurement_noise=1.0):
+    def __init__(self, initial_pose):
         """
         Args:
             initial_pose: np.array [x, y, theta]
@@ -19,10 +19,10 @@ class KalmanFilter:
         self.P = np.eye(3) * 1.0  # Covariance matrix
 
         # Process noise (model)
-        self.Q = np.eye(3) * (process_noise**2) # to have the variance directly
+        self.Q = np.load("Q.npy") # to have the variance directly
 
         # Measurement noise (vision)
-        self.R = np.eye(3) * (measurement_noise**2) # to have the variance directly
+        self.R = np.load("R.npy") # to have the variance directly
 
         # Measurement Jacobian (constant identity since h(x) = x)
         self.H = np.eye(3)

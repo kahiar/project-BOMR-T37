@@ -2,6 +2,8 @@ import csv
 import time
 import numpy as np
 
+from tdmclient import ClientAsync, aw
+from motion_controller import ThymioConnection, MotionController
 # ===========================================================
 # IMPORT VISION SYSTEM
 # ===========================================================
@@ -39,16 +41,6 @@ def get_aruco_measurement():
 # GET THYMIO WHEEL SPEEDS
 # ===========================================================
 
-def get_thymio_wheel_speeds():
-    """
-    Return (vL, vR) in mm/s.
-
-    """
-    # ---- REPLACE THIS WITH YOUR THYMIO API ----
-    vL = 0.0
-    vR = 0.0
-    return vL, vR
-
 
 # ===========================================================
 # MAIN LOGGER
@@ -66,29 +58,38 @@ def run_logger(duration=20.0, csv_path="log_data.csv", freq=30):
         start = time.time()
         last = start
 
-        while True:
-            now = time.time()
-            if now - start >= duration:
-                break
-            if now - last < dt:
-                continue
-            last = now
+        vs.calibrate()
+        with ThymioConnection() as (client, node):
+            motion = MotionController(mm2px = vs.mm2px)
+            motion.set_speed(np.array([50, 40]), node)
 
-            # 1) Get vision measurement
-            meas = get_aruco_measurement()
+            while True:
+                now = time.time()
+                if now - start >= duration:
+                    break
+                if now - last < dt:
+                    continue
+                last = now
 
-            # 2) Get wheel speeds
-            vL, vR = get_thymio_wheel_speeds()
+                # 1) Get vision measurement
+                meas = get_aruco_measurement()
 
-            # 3) Write row
-            if meas is None:
-                writer.writerow([now, "", "", "", vL, vR])
-            else:
-                x, y, theta = meas
-                writer.writerow([now, x, y, theta, vL, vR])
+                # 2) Get wheel speeds
+                aw(node.wait_for_variables())
+                vL, vR = np.array([
+                    node["motor.left.speed"],
+                    node["motor.right.speed"]
+                ])
 
-    print("\n✔ Logging complete.")
-    print(f"File saved: {csv_path}")
+                # 3) Write row
+                if meas is None:
+                    writer.writerow([now, "", "", "", vL, vR])
+                else:
+                    x, y, theta = meas
+                    writer.writerow([now, x, y, theta, vL, vR])
+
+        print("\n✔ Logging complete.")
+        print(f"File saved: {csv_path}")
 
 
 # ===========================================================

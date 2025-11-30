@@ -80,16 +80,16 @@ def compute_Q(csv_path):
 # MAIN
 # ======================================================
 if __name__ == "__main__":
-    path = input("path : log_data.csv")
+    path = "log_data.csv"
 
-    print("\n Computing R (camera noise)…")
-    R = compute_R(path)
-    print("\nR =\n", R)
-    np.save("R.npy", R)
+    #print("\n Computing R (camera noise)…")
+    #R = compute_R(path)
+    #print("\nR =\n", R)
+    #np.save("R.npy", R)
 
-    #print("\n Computing Q (process noise)…")
-    #Q = compute_Q(path)
-    #print("\nQ =\n", Q)
-    #np.save("Q.npy", Q)
+    print("\n Computing Q (process noise)…")
+    Q = compute_Q(path)
+    print("\nQ =\n", Q)
+    np.save("../Q.npy", Q)
 
     print("\n Saved R.npy and Q.npy")
