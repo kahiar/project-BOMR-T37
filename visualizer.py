@@ -311,8 +311,8 @@ class Visualizer:
 
         display_frame = self.draw_robot(display_frame, robot_pos)
 
-        if sensor_data is not None:
-            display_frame = self.draw_sensor_panel(display_frame, sensor_data)
+        #if sensor_data is not None:
+        #    display_frame = self.draw_sensor_panel(display_frame, sensor_data)
 
         if info_dict is not None:
             display_frame = self.draw_info_panel(display_frame, info_dict)

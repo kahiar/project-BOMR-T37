@@ -14,9 +14,7 @@ try:
     # === PHASE 1: CALIBRATION ===
     vision.calibrate(
         corner_ids={0, 2, 3, 5},
-        goal_id=1,
-        map_width=800,
-        map_height=600,
+        goal_id=1
     )
 
     # === PHASE 2: NAVIGATION/DEBUG VIEW ===

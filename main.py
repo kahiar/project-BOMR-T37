@@ -116,9 +116,10 @@ async def main():
             # Set speed
             motion.set_speed(target_speed, node)
 
-            # TODO: condition to recompute path
-            if np.any(abs(kalman.state[0:2] - last_state) > 100):
+            if np.linalg.norm(kalman.state[0:2] - last_state) > 100:
                 path = planner.compute_path(kalman.state[0:2], vision.goal_position, obstacles)
+                # Reset waypoint_idx
+                waypoint_idx = 0
 
             # Visualizer
 
