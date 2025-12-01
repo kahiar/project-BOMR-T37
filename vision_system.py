@@ -211,7 +211,7 @@ class VisionSystem:
         marker_centers = self._detect_marker_centers(frame, target_ids={4})
 
 
-        if 4 not in self.detected_markers:
+        if 4 not in marker_centers:
             print("Robot marker not detected!")
             return None
 
@@ -282,7 +282,7 @@ class VisionSystem:
             if len(approx)  != 4:
                 continue
 
-            scaled = self.scale_contour(approx, scale=1.5)
+            scaled = self.scale_contour(approx, scale=2)
             scaled_contours.append(scaled)
 
             vertices = scaled.reshape(-1, 2)   # (4,2)

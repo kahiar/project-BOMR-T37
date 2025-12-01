@@ -16,7 +16,7 @@ class KalmanFilter:
             measurement_noise: Measurement noise covariance (vision uncertainty)
         """
         self.state = initial_pose.astype(float)  # [x, y, theta]
-        self.P = np.eye(3) * 1.0  # Covariance matrix
+        self.P = np.eye(3) * 100.0  # Covariance matrix
 
         # Process noise (model)
         self.Q = np.load("Q.npy") # to have the variance directly
@@ -44,9 +44,10 @@ class KalmanFilter:
         vL, vR = control_input
         x, y, theta = self.state
 
+
         # Differential-drive kinematics
         v = (vR + vL) / 2
-        omega = (vR - vL) / self.L
+        omega = (vL - vR) / self.L
 
         # ----- MOTION MODEL g(x,u) -----
         x_pred = x + v * dt * np.cos(theta)

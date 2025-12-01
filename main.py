@@ -54,7 +54,7 @@ async def main():
         # Navigation loop
         waypoint_idx = 0
 
-        WAYPOINT_THRESHOLD = 50
+        WAYPOINT_THRESHOLD = 30
 
         while waypoint_idx < len(path):
             frame = vision.get_transform_frame()
@@ -84,12 +84,13 @@ async def main():
 
             # kalman filter to predict
             kalman.predict(current_speed_pixs[0:2], dt)
+            print(f"After predict: {kalman.state[0], kalman.state[1], kalman.state[2]}")
             kalman.update(robot_pose)
-            #kalman.state = robot_pose
-            print(f"predicted pos: {kalman.state[0], kalman.state[1]}")
+            print(f"After update: {kalman.state[0], kalman.state[1], kalman.state[2]}")
 
             current_waypoint = path[waypoint_idx]
 
+            #distance_to_waypoint = np.linalg.norm(kalman.state[0:2] - current_waypoint)
             distance_to_waypoint = np.linalg.norm(kalman.state[0:2] - current_waypoint)
 
             if distance_to_waypoint < WAYPOINT_THRESHOLD:

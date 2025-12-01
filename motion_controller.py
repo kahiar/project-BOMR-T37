@@ -67,7 +67,7 @@ class MotionController:
 
         return np.array([phi1_dot, phi2_dot])
 
-    def upload_local_avoidance(self, node, base_speed=80, threshold=1000):
+    def upload_local_avoidance(self, node, base_speed=80, threshold=2000):
         """
         Upload ANN obstacle avoidance to run directly on Thymio at 10Hz.
 
@@ -304,7 +304,7 @@ if __name__ == "__main__":
 
             # Move forward
             controller.set_speed(np.array([100, 100]), node)
-            time.sleep(2)
+            time.sleep(5)
 
             # Stop
             controller.set_speed(np.array([0, 0]), node)
