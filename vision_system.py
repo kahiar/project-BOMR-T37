@@ -20,13 +20,13 @@ class VisionSystem:
         self.corners = None  # [(x1, y1), ...]
         self.transform_matrix = None
         self.mm2px = None
-        self.map_size = (800, 600)
+        self.map_size = (900, 600)
         self.goal_position = None  # (x, y)
 
         # This works as 'cache' to make sure every function gets same frame
         # self._current_transform_frame = None
 
-    def calibrate(self, corner_ids={0, 2, 3, 5}, goal_id=1, map_width=800, map_height=600, real_height=1000):
+    def calibrate(self, corner_ids={0, 2, 3, 5}, goal_id=1, map_width=900, map_height=600, real_height=655):
         """
         Detect map corners and goal using aruco markers.
 

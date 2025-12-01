@@ -23,10 +23,7 @@ async def main():
     # Static Elements (corners, obstacles, goal and path)
     vision.calibrate(
         corner_ids={0, 2, 3, 5},
-        goal_id=1,
-        map_width=800,
-        map_height=600,
-        real_height=1200
+        goal_id=1
     )
     frame = vision.get_transform_frame()
     obstacles = vision.detect_obstacles(frame)
@@ -82,6 +79,8 @@ async def main():
             dt = current_time - last_time
             last_time = current_time
 
+            last_state = kalman.state[0:2]
+
             # kalman filter to predict
             kalman.predict(current_speed_pixs[0:2], dt)
             print(f"After predict: {kalman.state[0], kalman.state[1], kalman.state[2]}")
@@ -118,6 +117,8 @@ async def main():
             motion.set_speed(target_speed, node)
 
             # TODO: condition to recompute path
+            if np.any(abs(kalman.state[0:2] - last_state) > 100):
+                path = planner.compute_path(kalman.state[0:2], vision.goal_position, obstacles)
 
             # Visualizer
 

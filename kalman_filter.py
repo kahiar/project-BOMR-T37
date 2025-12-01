@@ -80,7 +80,7 @@ class KalmanFilter:
             self.state, self.P (corrected state and covariance)
         """
         if measurement is None:
-            self.P += self.Q * 0.5
+            self.P += self.Q * 2
             return  # No measurement, keep predicted state
 
         z = measurement.astype(float)
