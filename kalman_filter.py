@@ -7,9 +7,11 @@ class KalmanFilter:
 
     def __init__(self, initial_pose, mm2px):
         """
+        Initialize the Kalman filter.
+
         Args:
-            initial_pose: np.array [x, y, theta] initial robot pose
-            mm2px: Conversion factor from millimeters to pixels
+            initial_pose: np.array [x, y, theta] initial robot pose in pixels/radians
+            mm2px: float, conversion factor from millimeters to pixels
         """
         self.state = initial_pose.astype(float)
         self.P = np.eye(3) * 100.0
@@ -26,7 +28,11 @@ class KalmanFilter:
 
         Args:
             control_input: np.array [v_left, v_right] wheel speeds in px/s
-            dt: Time step in seconds
+            dt: float, time step in seconds
+
+        Updates:
+            self.state: Predicted state [x, y, theta]
+            self.P: Predicted covariance matrix
         """
         vL, vR = control_input
         x, y, theta = self.state
@@ -57,6 +63,10 @@ class KalmanFilter:
 
         Args:
             measurement: np.array [x, y, theta] from vision, or None if not detected
+
+        Updates:
+            self.state: Corrected state estimate
+            self.P: Corrected covariance matrix
         """
         if measurement is None:
             # Increase uncertainty when no measurement available
@@ -79,5 +89,10 @@ class KalmanFilter:
         self.P = (np.eye(3) - K @ self.H) @ self.P
 
     def get_state(self):
-        """Return current filtered pose estimate [x, y, theta]."""
+        """
+        Get current filtered pose estimate.
+
+        Returns:
+            np.array: [x, y, theta] filtered pose
+        """
         return self.state
