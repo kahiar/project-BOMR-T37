@@ -8,8 +8,10 @@ class MotionController:
 
     def __init__(self, mm2px):
         """
+        Initialize motion controller.
+
         Args:
-            mm2px: Conversion factor from millimeters to pixels
+            mm2px: float, conversion factor from millimeters to pixels
         """
         self.wheel_radius = utils.WHEEL_RADIUS_MM * mm2px
         self.robot_width = utils.THYMIO_WIDTH_MM * mm2px
@@ -20,16 +22,16 @@ class MotionController:
         Compute wheel speeds to reach target using proportional control.
 
         Args:
-            actual_pos: Current pose [x, y, theta]
-            target_pos: Target position [x, y]
-            r: Wheel radius
-            l: Half of wheel separation
-            max_speed: Maximum wheel speed
-            k_rho: Distance gain
-            k_alpha: Angle gain
+            actual_pos: np.array [x, y, theta] current robot pose
+            target_pos: np.array [x, y] target position
+            r: float, wheel radius in pixels
+            l: float, half of wheel separation in pixels
+            max_speed: int, maximum wheel speed in Thymio units
+            k_rho: float, proportional gain for distance
+            k_alpha: float, proportional gain for angle
 
         Returns:
-            np.array [left_speed, right_speed]
+            np.array: [left_speed, right_speed] motor commands
         """
         delta_pos = np.array(target_pos) - actual_pos[0:2]
         alpha = -actual_pos[2] + np.arctan2(delta_pos[1], delta_pos[0])
@@ -58,8 +60,11 @@ class MotionController:
         when obstacles are detected.
 
         Args:
-            node: Thymio node
-            threshold: Proximity value to trigger avoidance (0-4500)
+            node: Thymio node connection
+            threshold: int, proximity value to trigger avoidance (0-4500)
+
+        Returns:
+            bool: True if upload successful, False otherwise
         """
         program = f"""
 var w_l[7]
@@ -108,14 +113,28 @@ onevent prox
         return True
 
     def set_speed(self, speed, node):
-        """Send speed commands to motors."""
+        """
+        Send speed commands to Thymio motors.
+
+        Args:
+            speed: np.array [left_speed, right_speed] motor commands
+            node: Thymio node connection
+        """
         aw(node.set_variables({
             "motor.left.target": [int(speed[0])],
             "motor.right.target": [int(speed[1])],
         }))
 
     def get_sensor_data(self, node):
-        """Get front proximity sensor readings."""
+        """
+        Get front proximity sensor readings.
+
+        Args:
+            node: Thymio node connection
+
+        Returns:
+            np.array: Proximity values for 5 front sensors [FL, L, C, R, FR]
+        """
         aw(node.wait_for_variables({"prox.horizontal"}))
         return np.array(list(node['prox.horizontal'][0:5]))
 
@@ -124,16 +143,34 @@ class ThymioConnection:
     """Context manager for safe Thymio connection handling."""
 
     def __init__(self):
+        """Initialize connection manager."""
         self.client = None
         self.node = None
 
     def __enter__(self):
+        """
+        Establish connection and lock Thymio.
+
+        Returns:
+            tuple: (client, node) for Thymio communication
+        """
         self.client = ClientAsync()
         self.node = aw(self.client.wait_for_node())
         aw(self.node.lock())
         return self.client, self.node
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Stop motors and release Thymio connection.
+
+        Args:
+            exc_type: Exception type if error occurred
+            exc_val: Exception value
+            exc_tb: Exception traceback
+
+        Returns:
+            bool: False to propagate exceptions
+        """
         if self.node is not None:
             try:
                 aw(self.node.set_variables({
@@ -155,7 +192,12 @@ class ThymioConnection:
 
 
 def force_unlock_thymio():
-    """Force unlock Thymio if stuck in locked state."""
+    """
+    Force unlock Thymio if stuck in locked state.
+
+    Returns:
+        bool: True if unlock successful, False otherwise
+    """
     try:
         client = ClientAsync()
         node = aw(client.wait_for_node(timeout=5))
