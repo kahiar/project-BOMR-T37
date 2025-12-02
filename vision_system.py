@@ -4,9 +4,16 @@ from cv2 import aruco
 
 
 class VisionSystem:
-    """Camera-based detection of robot, obstacles, and goal using ArUco markers"""
+    """Camera-based detection of robot, obstacles, and goal using ArUco markers."""
 
     def __init__(self, camera_id=0, aruco_dict_type=aruco.DICT_4X4_50):
+        """
+        Initialize vision system with camera and ArUco detector.
+
+        Args:
+            camera_id: int, camera device index
+            aruco_dict_type: ArUco dictionary type for marker detection
+        """
         self.cap = cv2.VideoCapture(camera_id)
         self.aruco_dict = aruco.getPredefinedDictionary(aruco_dict_type)
         self.aruco_params = aruco.DetectorParameters()
@@ -26,12 +33,12 @@ class VisionSystem:
         Proceeds automatically once all markers are stable for several frames.
 
         Args:
-            corner_ids: Set of ArUco IDs for the 4 corner markers
-            goal_id: ArUco ID for the goal marker
-            map_width: Output map width in pixels
-            map_height: Output map height in pixels
-            real_height: Real-world height in mm (for mm2px conversion)
-            stability_frames: Number of consecutive frames with all markers before proceeding
+            corner_ids: set of int, ArUco IDs for the 4 corner markers
+            goal_id: int, ArUco ID for the goal marker
+            map_width: int, output map width in pixels
+            map_height: int, output map height in pixels
+            real_height: float, real-world height in mm (for mm2px conversion)
+            stability_frames: int, consecutive frames with all markers before proceeding
         """
         self.map_size = (map_width, map_height)
         stable_count = 0
@@ -66,14 +73,12 @@ class VisionSystem:
                 cv2.putText(display_frame, f"ID:{marker_id}", (int(x) + 15, int(y)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-            # Draw corner polygon if all detected
             if len(corner_markers) == 4:
                 corner_pts = [marker_centers[i] for i in sorted(corner_ids)]
                 corners_ordered = self._order_points(corner_pts)
                 pts = corners_ordered.astype(np.int32).reshape((-1, 1, 2))
                 cv2.polylines(display_frame, [pts], True, (0, 255, 0), 3)
 
-            # Status display
             status_color = (0, 255, 0) if all_found else (0, 0, 255)
             cv2.putText(display_frame, f"Corners: {len(corner_markers)}/4", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, status_color, 2)
@@ -120,7 +125,15 @@ class VisionSystem:
                 return
 
     def _order_points(self, pts):
-        """Order points as [TL, TR, BR, BL]"""
+        """
+        Order points as [TL, TR, BR, BL].
+
+        Args:
+            pts: list of (x, y) tuples
+
+        Returns:
+            np.array: Ordered points array of shape (4, 2)
+        """
         pts = np.array(pts)
         s = pts.sum(axis=1)
         tl = pts[np.argmin(s)]
@@ -131,7 +144,16 @@ class VisionSystem:
         return np.array([tl, tr, br, bl])
 
     def _detect_marker_centers(self, frame, target_ids=None):
-        """Detect ArUco markers and return their centers."""
+        """
+        Detect ArUco markers and return their centers.
+
+        Args:
+            frame: np.array, BGR image
+            target_ids: set of int marker IDs to detect, or None for all
+
+        Returns:
+            dict: {marker_id: (center_x, center_y)}
+        """
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         detector = aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
         markers_detected, ids, _ = detector.detectMarkers(gray)
@@ -152,12 +174,22 @@ class VisionSystem:
         return marker_centers
 
     def get_frame(self):
-        """Capture a raw frame from the camera."""
+        """
+        Capture a raw frame from the camera.
+
+        Returns:
+            np.array: BGR image, or None if capture failed
+        """
         ret, frame = self.cap.read()
         return frame if ret else None
 
     def get_transform_frame(self):
-        """Get perspective-transformed frame."""
+        """
+        Get perspective-transformed frame.
+
+        Returns:
+            np.array: Transformed BGR image, or None if not calibrated or capture failed
+        """
         frame = self.get_frame()
         if frame is None or self.transform_matrix is None:
             return None
@@ -166,7 +198,12 @@ class VisionSystem:
     def detect_robot_raw_pose(self, frame):
         """
         Detect robot pose from ArUco marker (ID 4).
-        Returns [x, y, theta] or None if not detected.
+
+        Args:
+            frame: np.array, transformed BGR image
+
+        Returns:
+            np.array: [x, y, theta] pose in pixels/radians, or None if not detected
         """
         self._detect_marker_centers(frame, target_ids={4})
 
@@ -189,7 +226,12 @@ class VisionSystem:
     def detect_obstacles(self, frame):
         """
         Detect blue rectangular obstacles.
-        Returns list of polygon vertices as np.arrays.
+
+        Args:
+            frame: np.array, transformed BGR image
+
+        Returns:
+            list: Obstacle polygons as list of np.array with shape (4, 2)
         """
         if frame is None:
             return []
@@ -200,7 +242,15 @@ class VisionSystem:
         return vertices
 
     def _filter_blue(self, image):
-        """Extract blue regions using HSV color filtering."""
+        """
+        Extract blue regions using HSV color filtering.
+
+        Args:
+            image: np.array, BGR image
+
+        Returns:
+            np.array: Binary mask of blue regions
+        """
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, np.array([90, 50, 50]), np.array([130, 255, 255]))
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
@@ -208,13 +258,30 @@ class VisionSystem:
         return mask
 
     def _process_edges(self, mask):
-        """Apply blur, edge detection, and dilation."""
+        """
+        Apply blur, edge detection, and dilation.
+
+        Args:
+            mask: np.array, binary mask
+
+        Returns:
+            np.array: Edge image
+        """
         blurred = cv2.GaussianBlur(mask, (3, 3), 0)
         edges = cv2.Canny(blurred, 50, 150, 7, L2gradient=True)
         return cv2.dilate(edges, np.ones((5, 5), np.uint8), iterations=1)
 
     def _detect_rectangles(self, edges):
-        """Find rectangular contours and scale them for safety margin."""
+        """
+        Find rectangular contours and scale them for safety margin.
+
+        Args:
+            edges: np.array, edge image
+
+        Returns:
+            tuple: (scaled_contours, vertices_list) where vertices_list contains
+                   np.array of shape (4, 2) for each rectangle
+        """
         contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         scaled_contours = []
@@ -232,7 +299,16 @@ class VisionSystem:
         return scaled_contours, all_vertices
 
     def _scale_contour(self, contour, scale):
-        """Scale contour outward from its centroid."""
+        """
+        Scale contour outward from its centroid.
+
+        Args:
+            contour: np.array, contour points
+            scale: float, scale factor (>1 expands, <1 shrinks)
+
+        Returns:
+            np.array: Scaled contour
+        """
         M = cv2.moments(contour)
         if M['m00'] == 0:
             return contour
@@ -245,7 +321,12 @@ class VisionSystem:
         return scaled.astype(np.int32)
 
     def get_goal_position(self):
-        """Return goal position (x, y)."""
+        """
+        Get goal position.
+
+        Returns:
+            np.array: [x, y] goal position in pixels
+        """
         return self.goal_position
 
     def release(self):
