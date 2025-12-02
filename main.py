@@ -141,7 +141,9 @@ async def main():
                 current_waypoint_idx=0,
                 sensor_data=sensor_data,
                 goal_pos=vision.goal_position,
-                info_dict=info
+                info_dict=info,
+                kalman_state=kalman.state,
+                kalman_covariance=kalman.P
             )
 
 if __name__ == "__main__":
