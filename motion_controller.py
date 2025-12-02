@@ -66,44 +66,45 @@ class MotionController:
         Returns:
             bool: True if upload successful, False otherwise
         """
-        program = f"""
-var w_l[7]
-var w_r[7]
-var sensor_scale
-var y[2]
-var x[7]
-var i
-var max_prox
-
-onevent prox
-    w_l = [40, 20, -20, -20, -40, 30, -10]
-    w_r = [-40, -20, -20, 20, 40, -10, 30]
-    sensor_scale = 200
-    y = [motor.left.speed, motor.right.speed]
-    x = [0, 0, 0, 0, 0, 0, 0]
-
-    max_prox = 0
-    i = 0
-    while i < 7 do
-        if prox.horizontal[i] > max_prox then
-            max_prox = prox.horizontal[i]
-        end
-        i++
-    end
-
-    if max_prox > {threshold} then
-        i = 0
-        while i < 7 do
-            x[i] = prox.horizontal[i] / sensor_scale
-            y[0] = y[0] + x[i] * w_l[i]
-            y[1] = y[1] + x[i] * w_r[i]
-            i++
-        end
-    end
-
-    motor.left.target = y[0]
-    motor.right.target = y[1]
-"""
+        program = \
+        f"""
+            var w_l[7]
+            var w_r[7]
+            var sensor_scale
+            var y[2]
+            var x[7]
+            var i
+            var max_prox
+            
+            onevent prox
+                w_l = [40, 20, -20, -20, -40, 30, -10]
+                w_r = [-40, -20, -20, 20, 40, -10, 30]
+                sensor_scale = 200
+                y = [motor.left.speed, motor.right.speed]
+                x = [0, 0, 0, 0, 0, 0, 0]
+            
+                max_prox = 0
+                i = 0
+                while i < 7 do
+                    if prox.horizontal[i] > max_prox then
+                        max_prox = prox.horizontal[i]
+                    end
+                    i++
+                end
+            
+                if max_prox > {threshold} then
+                    i = 0
+                    while i < 7 do
+                        x[i] = prox.horizontal[i] / sensor_scale
+                        y[0] = y[0] + x[i] * w_l[i]
+                        y[1] = y[1] + x[i] * w_r[i]
+                        i++
+                    end
+                end
+            
+                motor.left.target = y[0]
+                motor.right.target = y[1]
+        """
         error = aw(node.compile(program))
         if error is not None:
             print(f"Compilation error: {error}")
@@ -124,20 +125,6 @@ onevent prox
             "motor.left.target": [int(speed[0])],
             "motor.right.target": [int(speed[1])],
         }))
-
-    def get_sensor_data(self, node):
-        """
-        Get front proximity sensor readings.
-
-        Args:
-            node: Thymio node connection
-
-        Returns:
-            np.array: Proximity values for 5 front sensors [FL, L, C, R, FR]
-        """
-        aw(node.wait_for_variables({"prox.horizontal"}))
-        return np.array(list(node['prox.horizontal'][0:5]))
-
 
 class ThymioConnection:
     """Context manager for safe Thymio connection handling."""

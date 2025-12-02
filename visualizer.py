@@ -217,7 +217,7 @@ class Visualizer:
             bar_max_height = 60
             max_sensor_value = 4500
 
-            for i in range(5):
+            for i in range(7):
                 value = min(sensor_data[i], max_sensor_value)
                 bar_height = int((value / max_sensor_value) * bar_max_height)
                 x = 15 + i * 58

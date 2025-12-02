@@ -61,15 +61,17 @@ async def main():
             ])
             current_speed_px = current_speed * THYMIO2MMS * vision.mm2px
 
-            # Compute time step
+            # Get sensor data for visualization
+            sensor_data = np.array(list(node['prox.horizontal']))
+
+            # Compute dt
             current_time = time.time()
             dt = current_time - last_time
             last_time = current_time
 
-            # Store previous state for replanning check
             last_state = kalman.state[0:2].copy()
 
-            # Kalman filter: predict then update
+            # Kalman filter
             kalman.predict(current_speed_px, dt)
             kalman.update(robot_pose)
 
@@ -96,13 +98,10 @@ async def main():
             )
             motion.set_speed(target_speed, node)
 
-            # Replan if drifted significantly (e.g., after local avoidance)
+            # Kidnapping check
             if np.linalg.norm(kalman.state[0:2] - last_state) > 100:
                 path = planner.compute_path(kalman.state[0:2], vision.goal_position, obstacles)
                 waypoint_idx = 0
-
-            # Get sensor data for visualization
-            sensor_data = motion.get_sensor_data(node)
 
             # Update visualization
             info = {
