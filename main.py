@@ -8,7 +8,6 @@ from vision_system import VisionSystem
 from kalman_filter import KalmanFilter
 from path_planner import PathPlanner
 from motion_controller import MotionController, ThymioConnection
-from robot_controller import RobotController
 from visualizer import Visualizer
 import numpy as np
 
