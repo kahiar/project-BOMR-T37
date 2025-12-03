@@ -27,7 +27,7 @@ class PathPlanner:
                 nodes.append(np.array(v))
 
         self.graph = self._build_visibility_graph(nodes, obstacles)
-        path_indices, _ = self._a_star(nodes, obstacles)
+        path_indices, _ = self._a_star(nodes)
 
         if path_indices is None:
             return None
@@ -143,13 +143,12 @@ class PathPlanner:
 
         return False
 
-    def _a_star(self, nodes, obstacles, start_idx=0, goal_idx=1):
+    def _a_star(self, nodes, start_idx=0, goal_idx=1):
         """
         A* search on visibility graph.
 
         Args:
             nodes: list of np.array positions
-            obstacles: list of obstacle polygons
             start_idx: int, index of start node (default 0)
             goal_idx: int, index of goal node (default 1)
 
@@ -166,9 +165,19 @@ class PathPlanner:
 
         came_from = {}
         open_heap = [(f_score[start_idx], start_idx)]
+        closed_set = set()
 
         while open_heap:
-            _, current = heapq.heappop(open_heap)
+            current_f, current = heapq.heappop(open_heap)
+
+            # Skip outdated heap entries
+            if current_f > f_score[current]:
+                continue
+
+            # Skip already expanded nodes
+            if current in closed_set:
+                continue
+            closed_set.add(current)
 
             if current == goal_idx:
                 path = [current]
@@ -177,13 +186,12 @@ class PathPlanner:
                     path.append(current)
                 return path[::-1], g_score[goal_idx]
 
-            for neighbor in range(n):
-                if neighbor == current:
-                    continue
-                if not self._is_visible(current, neighbor, nodes, obstacles):
+            # Use pre-built visibility graph instead of rechecking visibility
+            for neighbor, dist in self.graph[current]:
+                # Skip already expanded nodes
+                if neighbor in closed_set:
                     continue
 
-                dist = np.linalg.norm(nodes[current] - nodes[neighbor])
                 tentative_g = g_score[current] + dist
 
                 if tentative_g < g_score[neighbor]:
