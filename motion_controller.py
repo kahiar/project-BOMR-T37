@@ -16,14 +16,15 @@ class MotionController:
         self.wheel_radius = utils.WHEEL_RADIUS_MM * mm2px
         self.robot_width = utils.THYMIO_WIDTH_MM * mm2px
 
+    # TODO: Check units and adapt function
     def compute_speed(self, actual_pos, target_pos, r, l, max_speed=500,
                       k_rho=20, k_alpha=40):
         """
         Compute wheel speeds to reach target using proportional control.
 
         Args:
-            actual_pos: np.array [x, y, theta] current robot pose
-            target_pos: np.array [x, y] target position
+            actual_pos: np.array [x, y, theta]
+            target_pos: np.array [x, y]
             r: float, wheel radius in pixels
             l: float, half of wheel separation in pixels
             max_speed: int, maximum wheel speed in Thymio units
