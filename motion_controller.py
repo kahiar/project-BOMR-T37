@@ -13,8 +13,8 @@ class MotionController:
         Args:
             mm2px: float, conversion factor from millimeters to pixels
         """
-        self.wheel_radius = utils.WHEEL_RADIUS_MM * mm2px
-        self.robot_width = utils.THYMIO_WIDTH_MM * mm2px
+        self.wheel_radius = WHEEL_RADIUS_MM * mm2px
+        self.robot_width = THYMIO_WIDTH_MM * mm2px
 
     def compute_speed(self, actual_pos, target_pos, max_speed=500,
                       k_rho=20, k_alpha=40):
