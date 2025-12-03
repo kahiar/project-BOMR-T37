@@ -1,6 +1,6 @@
 import numpy as np
 from tdmclient import ClientAsync, aw
-import utils
+from utils import *
 
 
 class MotionController:
@@ -16,8 +16,7 @@ class MotionController:
         self.wheel_radius = utils.WHEEL_RADIUS_MM * mm2px
         self.robot_width = utils.THYMIO_WIDTH_MM * mm2px
 
-    # TODO: Check units and adapt function
-    def compute_speed(self, actual_pos, target_pos, r, l, max_speed=500,
+    def compute_speed(self, actual_pos, target_pos, max_speed=500,
                       k_rho=20, k_alpha=40):
         """
         Compute wheel speeds to reach target using proportional control.
@@ -25,8 +24,6 @@ class MotionController:
         Args:
             actual_pos: np.array [x, y, theta]
             target_pos: np.array [x, y]
-            r: float, wheel radius in pixels
-            l: float, half of wheel separation in pixels
             max_speed: int, maximum wheel speed in Thymio units
             k_rho: float, proportional gain for distance
             k_alpha: float, proportional gain for angle
@@ -42,17 +39,24 @@ class MotionController:
         v = k_rho * rho * np.cos(alpha)
         omega = k_alpha * alpha
 
+        l = self.robot_width / 2
+        r = self.wheel_radius
+
         phi_left = (v + l * omega) / r
         phi_right = (v - l * omega) / r
 
-        # Limit to max speed while preserving ratio
-        phi_max = max(abs(phi_left), abs(phi_right))
-        if phi_max > max_speed:
-            scale = max_speed / phi_max
-            phi_left *= scale
-            phi_right *= scale
+        # Convert to motor commands
+        left_cmd = phi_left * RADS2THYMIO
+        right_cmd = phi_right * RADS2THYMIO
 
-        return np.array([phi_left, phi_right])
+        # Limit to max speed while preserving ratio
+        max_cmd = max(abs(left_cmd), abs(right_cmd))
+        if max_cmd > max_speed:
+            scale = max_speed / max_cmd
+            left_cmd *= scale
+            right_cmd *= scale
+
+        return np.array([left_cmd, right_cmd])
 
     def upload_local_avoidance(self, node, threshold=2000):
         """
