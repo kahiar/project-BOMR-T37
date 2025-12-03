@@ -17,16 +17,16 @@ class MotionController:
         self.robot_width = THYMIO_WIDTH_MM * mm2px
 
     def compute_speed(self, actual_pos, target_pos, max_speed=500,
-                      k_rho=20, k_alpha=40):
+                      k_rho=0.35, k_alpha=0.7):
         """
         Compute wheel speeds to reach target using proportional control.
 
         Args:
             actual_pos: np.array [x, y, theta]
             target_pos: np.array [x, y]
-            max_speed: int, maximum wheel speed in Thymio units
-            k_rho: float, proportional gain for distance
-            k_alpha: float, proportional gain for angle
+            max_speed: int, maximum wheel speed in Thymio motor command units
+            k_rho: float, proportional gain for distance in 1/s
+            k_alpha: float, proportional gain for angle in 1/s
 
         Returns:
             np.array: [left_speed, right_speed] motor commands
