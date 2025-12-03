@@ -1,15 +1,65 @@
-# Mobile Robotics Project
-## Functions of the robot
-- Move from point A to point B and avoid obstacles during its movement
+# Thymio Robot Navigation System
 
-Workflow:
-- Camera detects corners of the environment, flattens if needed. (Croping and perspective transform)
-- Camera detects obstacles, finds vertices and puts them at a distance where the thymio doesn't touch the obstacle.
-- Map the dots and use an algorithm to find the shortest paths connecting the dots.
-- We send instructions to the robot in order for it to move (move with control or move turn type of movement)
-- Tracking to correct robot's position
-- Local avoidance (unexpected obstacles and return to initial trajectory)
+Autonomous navigation system for a Thymio robot using computer vision, path planning, and Kalman filtering.
 
+## Overview
 
-Remarks:
-- We need to know the direction of the robot at all times.
+The robot navigates from any starting position to a goal location while avoiding obstacles. An overhead camera provides localization via ArUco markers, and the system gracefully handles camera occlusion by switching to odometry-based estimation.
+
+## Components
+
+| Module | Description |
+|--------|-------------|
+| `main.py` | Main navigation loop |
+| `vision_system.py` | Camera calibration, ArUco detection, obstacle detection |
+| `kalman_filter.py` | Extended Kalman Filter for pose estimation |
+| `path_planner.py` | A* path planning with visibility graphs |
+| `motion_controller.py` | Motor control and local obstacle avoidance |
+| `visualizer.py` | Real-time visualization with status panel |
+| `utils.py` | Robot physical parameters |
+
+## Hardware Setup
+
+- **Robot**: Thymio II
+- **Camera**: Overhead camera with bird's-eye view
+- **ArUco Markers**:
+  - IDs 0, 2, 3, 5: Map corners
+  - ID 1: Goal position
+  - ID 4: Robot (mounted on top)
+- **Obstacles**: Blue rectangular objects
+
+## Installation
+
+```bash
+pip install -r requirements.txt
+```
+
+## Usage
+
+1. Position the camera above the arena
+2. Place ArUco markers at corners (IDs 0, 2, 3, 5) and goal (ID 1)
+3. Attach marker ID 4 to the Thymio
+4. Connect Thymio via USB or wireless dongle
+5. Run:
+
+```bash
+python main.py
+```
+
+The system will auto-calibrate when all markers are detected, then begin navigation.
+
+## Calibration Files
+
+The Kalman filter requires pre-computed noise covariance matrices:
+- `Q.npy`: Process noise covariance (3x3)
+- `R.npy`: Measurement noise covariance (3x3)
+
+## Controls
+
+- Press `q` during calibration to quit
+
+## Authors
+
+Daniel Ataíde \
+Nicholas Thole \
+Rachid Kahia
