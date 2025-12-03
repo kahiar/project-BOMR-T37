@@ -30,7 +30,7 @@ class VisionSystem:
                   stability_frames=15):
         """
         Auto-calibrate by detecting map corners and goal markers.
-        Proceeds automatically once all markers are stable for several frames.
+        Start navigation once all markers are stable for several frames.
 
         Args:
             corner_ids: set of int, ArUco IDs for the 4 corner markers
@@ -203,7 +203,7 @@ class VisionSystem:
             frame: np.array, transformed BGR image
 
         Returns:
-            np.array: [x, y, theta] pose in pixels/radians, or None if not detected
+            np.array: [x, y, theta] pose in pixels for position, radians for angle, or None if not detected
         """
         self._detect_marker_centers(frame, target_ids={4})
 
