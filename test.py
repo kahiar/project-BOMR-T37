@@ -52,8 +52,8 @@ async def main():
 
         last_time = time.time()
         WAYPOINT_THRESHOLD = 30
-        GOAL_THRESHOLD = 40
         RESTART_THRESHOLD = 100  # Distance from goal to restart navigation
+        KIDNAPPING_THRESHOLD = 50
 
         path = None
         waypoint_idx = 0
@@ -74,6 +74,9 @@ async def main():
                 node["motor.right.speed"]
             ])
             current_speed_px = current_speed * THYMIO2MMS * vision.mm2px
+
+            # Get sensor data for visualization
+            sensor_data = np.array(list(node['prox.horizontal']))
 
             # Compute time step
             current_time = time.time()
@@ -125,7 +128,7 @@ async def main():
                 current_waypoint = path[waypoint_idx]
                 distance_to_waypoint = np.linalg.norm(kalman.state[0:2] - current_waypoint)
 
-                # Compute and send motor commands
+                # Compute and send motor commands based on distance to next waypoint
                 if distance_to_waypoint > 600:
                     target_speed = motion.compute_speed(
                         kalman.state,
@@ -134,7 +137,6 @@ async def main():
                         k_alpha=10,
                     )
                 elif distance_to_waypoint > 350:
-                    # Change gains to turn less
                     target_speed = motion.compute_speed(
                         kalman.state,
                         current_waypoint,
@@ -149,15 +151,12 @@ async def main():
                 motion.set_speed(target_speed, node)
 
                 # Kidnapping check
-                if np.linalg.norm(kalman.state[0:2] - last_state) > 100:
+                if np.linalg.norm(kalman.state[0:2] - last_state) > KIDNAPPING_THRESHOLD:
                     path = planner.compute_path(kalman.state[0:2], vision.goal_position, obstacles)
                     waypoint_idx = 0
             else:
                 # At goal or no path - stop motors
                 motion.set_speed(np.array([0, 0]), node)
-
-            # Get sensor data for visualization
-            sensor_data = np.array(list(node['prox.horizontal']))
 
             # Update visualization
             if path is not None:
