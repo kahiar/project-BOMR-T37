@@ -13,6 +13,7 @@ class MotionController:
         Args:
             mm2px: float, conversion factor from millimeters to pixels
         """
+        self.mm2px = mm2px
         self.wheel_radius = WHEEL_RADIUS_MM * mm2px
         self.robot_width = THYMIO_WIDTH_MM * mm2px
 
@@ -25,8 +26,8 @@ class MotionController:
             actual_pos: np.array [x, y, theta]
             target_pos: np.array [x, y]
             max_speed: int, maximum wheel speed in Thymio motor command units
-            k_rho: float, proportional gain for distance in 1/s
-            k_alpha: float, proportional gain for angle in 1/s
+            k_rho: float, proportional gain for distance in Hz
+            k_alpha: float, proportional gain for angle in Hz
 
         Returns:
             np.array: [left_speed, right_speed] motor commands in Thymio motor command units
@@ -36,14 +37,16 @@ class MotionController:
         alpha = (alpha + np.pi) % (2 * np.pi) - np.pi
         rho = np.linalg.norm(delta_pos)
 
-        v = k_rho * rho * np.cos(alpha)
+        rho_mm = rho / self.mm2px
+
+        v = k_rho * rho_mm * np.cos(alpha)
         omega = k_alpha * alpha
 
-        l = self.robot_width / 2
-        r = self.wheel_radius
+        L = THYMIO_WIDTH_MM
+        r = WHEEL_RADIUS_MM
 
-        phi_left = (v + l * omega) / r
-        phi_right = (v - l * omega) / r
+        phi_left = (v + (L / 2) * omega) / r
+        phi_right = (v - (L /  2) * omega) / r
 
         # Convert to motor commands
         left_cmd = phi_left * RADS2THYMIO
