@@ -70,7 +70,7 @@ class KalmanFilter:
         """
         if measurement is None:
             # Increase uncertainty when no measurement available
-            self.P += self.Q * 2
+            self.P += self.Q * 10
             return
 
         z = measurement.astype(float)
