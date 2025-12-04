@@ -27,7 +27,7 @@ class VisionSystem:
 
     def calibrate(self, corner_ids={0, 2, 3, 5}, goal_id=1,
                   map_width=900, map_height=600, real_height=655,
-                  stability_frames=30):
+                  stability_frames=15):
         """
         Auto-calibrate by detecting map corners and goal markers.
         Start navigation once all markers are stable for several frames.
