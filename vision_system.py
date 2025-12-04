@@ -122,8 +122,6 @@ class VisionSystem:
                 cv2.destroyWindow("Calibration")
                 print("Calibration complete!")
                 print(f"  Goal position: {self.goal_position}")
-
-
                 return
 
     def _order_points(self, pts):
