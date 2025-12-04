@@ -39,7 +39,7 @@ try:
 
         # Create dummy sensor data for testing
         # TODO: Replace with real sensor data from Thymio
-        sensor_data = np.array([1000, 500, 200, 300, 800])
+        sensor_data = np.array([1000, 500, 200, 300, 800, 700, 700])
 
         # Info panel
         info = {
@@ -59,16 +59,7 @@ try:
 
 
         # Update visualization with everything
-        visualizer.update(
-            frame=frame,
-            obstacles=obstacles,
-            robot_pos=robot_pose,
-            path=path,
-            current_waypoint_idx=0,
-            sensor_data=sensor_data,
-            goal_pos=vision.goal_position,
-            info_dict=info
-        )
+
 
         frame_count += 1
 
