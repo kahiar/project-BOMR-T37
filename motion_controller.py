@@ -19,17 +19,17 @@ class MotionController:
     def compute_speed(self, actual_pos, target_pos, max_speed=500,
                       k_rho=0.35, k_alpha=0.7):
         """
-        Compute wheel speeds to reach target using proportional control.
+        Compute wheel speeds to reach target using a modified Astolfi proportional nonlinear controller.
 
         Args:
             actual_pos: np.array [x, y, theta]
             target_pos: np.array [x, y]
-            max_speed: int, maximum wheel speed in Thymio units
-            k_rho: float, proportional gain for distance
-            k_alpha: float, proportional gain for angle
+            max_speed: int, maximum wheel speed in Thymio motor command units
+            k_rho: float, proportional gain for distance in 1/s
+            k_alpha: float, proportional gain for angle in 1/s
 
         Returns:
-            np.array: [left_speed, right_speed] motor commands
+            np.array: [left_speed, right_speed] motor commands in Thymio motor command units
         """
         delta_pos = np.array(target_pos) - actual_pos[0:2]
         alpha = -actual_pos[2] + np.arctan2(delta_pos[1], delta_pos[0])
