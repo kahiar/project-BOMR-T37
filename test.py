@@ -85,12 +85,7 @@ async def main():
 
             # Kalman filter: predict then update
             kalman.predict(current_speed_px, dt)
-            if robot_pose is None:
-                print(f"Predict: {kalman.state[0:2]}")
             kalman.update(robot_pose)
-            if robot_pose is None:
-                print(f"Camera: {kalman.state[0:2]}")
-
 
             # Distance to goal
             distance_to_goal = np.linalg.norm(kalman.state[0:2] - vision.goal_position)

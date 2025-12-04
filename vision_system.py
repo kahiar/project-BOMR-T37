@@ -205,9 +205,10 @@ class VisionSystem:
         Returns:
             np.array: [x, y, theta] pose in pixels for position, radians for angle, or None if not detected
         """
-        self._detect_marker_centers(frame, target_ids={4})
+        marker_centers = self._detect_marker_centers(frame, target_ids={4})
 
-        if 4 not in self.detected_markers:
+
+        if 4 not in marker_centers:
             return None
 
         robot_data = self.detected_markers[4]
