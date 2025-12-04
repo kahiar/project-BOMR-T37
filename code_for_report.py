@@ -57,3 +57,4 @@ def draw_contours(image, scaled_contours, all_vertices):
     cv2.drawContours(output, scaled_contours, -1, (0, 0, 255), 6)
 
     return output
+
