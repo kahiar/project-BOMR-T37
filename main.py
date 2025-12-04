@@ -90,10 +90,20 @@ async def main():
 
             # Compute and send motor commands
             current_waypoint = path[waypoint_idx]
-            target_speed = motion.compute_speed(
-                kalman.state,
-                current_waypoint,
-            )
+
+            if distance_to_waypoint > 350:
+                # Change gains to turn less
+                target_speed = motion.compute_speed(
+                    kalman.state,
+                    current_waypoint,
+                    k_rho=0.25,
+                    k_alpha=0.35,
+                )
+            else:
+                target_speed = motion.compute_speed(
+                    kalman.state,
+                    current_waypoint,
+                )
             motion.set_speed(target_speed, node)
 
             # Kidnapping check
