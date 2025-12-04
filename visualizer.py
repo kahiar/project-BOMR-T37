@@ -5,7 +5,7 @@ import numpy as np
 class Visualizer:
     """Real-time navigation display with side panel for sensors and status."""
 
-    def __init__(self, window_name="Robot Navigation", panel_width=320):
+    def __init__(self, window_name="Robot Navigation", panel_width=350):
         """
         Initialize visualizer window.
 
@@ -213,14 +213,14 @@ class Visualizer:
         y_offset += 25
 
         if sensor_data is not None:
-            bar_width = 45
+            bar_width = 30
             bar_max_height = 60
             max_sensor_value = 4500
 
             for i in range(7):
                 value = min(sensor_data[i], max_sensor_value)
                 bar_height = int((value / max_sensor_value) * bar_max_height)
-                x = 15 + i * 58
+                x = 15 + i * 45
 
                 if value > 3000:
                     color = (0, 0, 255)
@@ -235,7 +235,7 @@ class Visualizer:
                 cv2.rectangle(panel, (x, y_offset), (x + bar_width, y_offset + bar_max_height),
                               (100, 100, 100), 1)
 
-                labels = ["FL", "L", "C", "R", "FR"]
+                labels = ["FL", "L", "C", "R", "FR", "RL", "RR"]
                 cv2.putText(panel, labels[i], (x + 12, y_offset + bar_max_height + 15),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
 
