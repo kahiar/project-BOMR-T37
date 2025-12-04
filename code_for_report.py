@@ -62,7 +62,7 @@ def draw_contours(image, scaled_contours, all_vertices):
     return output
 
 
-def visualize_visibility_graph(start, goal, obstacles, image_path):
+def visualize_visibility_graph(start, goal, obstacles, image_path, show_path=False):
     """
     Visualize the visibility graph on a calibrated frame image.
     
@@ -71,6 +71,7 @@ def visualize_visibility_graph(start, goal, obstacles, image_path):
         goal: np.array [x, y] goal position
         obstacles: list of np.array polygons
         image_path: str, path to the background image
+        show_path: bool, if True, compute and draw the shortest path
     
     Returns:
         matplotlib figure object
@@ -110,10 +111,20 @@ def visualize_visibility_graph(start, goal, obstacles, image_path):
         else:  # Obstacle vertices
             cv2.circle(frame, (int(node[0]), int(node[1])), 5, (255, 255, 255), -1)  # White
     
+    # Optionally draw the shortest path
+    if show_path:
+        path = planner.compute_path(start, goal, obstacles)
+        if path is not None:
+            for i in range(len(path) - 1):
+                pt1 = (int(path[i][0]), int(path[i][1]))
+                pt2 = (int(path[i+1][0]), int(path[i+1][1]))
+                cv2.line(frame, pt1, pt2, (255, 200, 100), 3)  # Light blue line
+    
     # Display the result
     fig = plt.figure(figsize=(9, 6))
     plt.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    plt.title('Visibility Graph')
+    title = 'Shortest Path over Visibility Graph' if show_path else 'Visibility Graph'
+    plt.title(title)
     plt.axis('off')
     plt.tight_layout()
     
