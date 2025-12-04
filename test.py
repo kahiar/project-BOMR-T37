@@ -121,11 +121,19 @@ async def main():
                         path = None
                         continue
 
-                # Update current waypoint after potential increment
+                # Update current waypoint and distance after increment
                 current_waypoint = path[waypoint_idx]
+                distance_to_waypoint = np.linalg.norm(kalman.state[0:2] - current_waypoint)
 
                 # Compute and send motor commands
-                if distance_to_waypoint > 350:
+                if distance_to_waypoint > 600:
+                    target_speed = motion.compute_speed(
+                        kalman.state,
+                        current_waypoint,
+                        k_rho=0.35,
+                        k_alpha=10,
+                    )
+                elif distance_to_waypoint > 350:
                     # Change gains to turn less
                     target_speed = motion.compute_speed(
                         kalman.state,
