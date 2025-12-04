@@ -93,8 +93,6 @@ async def main():
             target_speed = motion.compute_speed(
                 kalman.state,
                 current_waypoint,
-                WHEEL_RADIUS_MM,
-                THYMIO_WIDTH_MM / 2
             )
             motion.set_speed(target_speed, node)
 
