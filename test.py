@@ -131,7 +131,7 @@ async def main():
                         kalman.state,
                         current_waypoint,
                         k_rho=0.25,
-                        k_alpha=0.35,
+                        k_alpha=0.75,
                     )
                 else:
                     target_speed = motion.compute_speed(
