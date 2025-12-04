@@ -107,7 +107,8 @@ async def main():
             motion.set_speed(target_speed, node)
 
             # Kidnapping check
-            if np.linalg.norm(kalman.state[0:2] - last_state) > 100:
+            KIDNAPPING_THRESHOLD = 50
+            if np.linalg.norm(kalman.state[0:2] - last_state) > KIDNAPPING_THRESHOLD:
                 path = planner.compute_path(kalman.state[0:2], vision.goal_position, obstacles)
                 waypoint_idx = 0
 
