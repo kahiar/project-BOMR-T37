@@ -55,9 +55,9 @@ def draw_contours(image, scaled_contours, all_vertices):
     output = image.copy()
     for vertices in all_vertices:
         for (x, y) in vertices:
-            cv2.circle(output, (x, y), 20, (0, 0, 255), -1)
+            cv2.circle(output, (x, y), 6, (0, 0, 255), -1)
 
-    cv2.drawContours(output, scaled_contours, -1, (0, 0, 255), 6)
+    cv2.drawContours(output, scaled_contours, -1, (0, 0, 255), 2)
 
     return output
 
